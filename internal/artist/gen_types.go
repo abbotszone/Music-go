@@ -1173,6 +1173,33 @@ func (t ChatActionTyping) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ChatAdministrator Contains information about a chat administrator
+type ChatAdministrator struct {
+	// True, if the current user can edit the administrator privileges for the administrator
+	CanBeEdited bool `json:"can_be_edited"`
+	// Custom title of the administrator
+	CustomTitle string `json:"custom_title"`
+	// True, if the user is the owner of the chat
+	IsOwner bool `json:"is_owner"`
+	// User identifier of the administrator
+	UserId int64 `json:"user_id"`
+}
+
+func (t ChatAdministrator) GetType() string {
+	return "chatAdministrator"
+}
+
+func (t ChatAdministrator) MarshalJSON() ([]byte, error) {
+	type Alias ChatAdministrator
+	return json.Marshal(&struct {
+		TypeStr string `json:"@type"`
+		*Alias
+	}{
+		TypeStr: "chatAdministrator",
+		Alias:   (*Alias)(&t),
+	})
+}
+
 // ChatAdministratorRights Describes rights of the administrator
 type ChatAdministratorRights struct {
 	// True, if the administrator can change the chat title, photo, and other settings
@@ -1224,6 +1251,27 @@ func (t ChatAdministratorRights) MarshalJSON() ([]byte, error) {
 		*Alias
 	}{
 		TypeStr: "chatAdministratorRights",
+		Alias:   (*Alias)(&t),
+	})
+}
+
+// ChatAdministrators Represents a list of chat administrators
+type ChatAdministrators struct {
+	// A list of chat administrators
+	Administrators []ChatAdministrator `json:"administrators"`
+}
+
+func (t ChatAdministrators) GetType() string {
+	return "chatAdministrators"
+}
+
+func (t ChatAdministrators) MarshalJSON() ([]byte, error) {
+	type Alias ChatAdministrators
+	return json.Marshal(&struct {
+		TypeStr string `json:"@type"`
+		*Alias
+	}{
+		TypeStr: "chatAdministrators",
 		Alias:   (*Alias)(&t),
 	})
 }
@@ -9343,8 +9391,20 @@ func UnmarshalWithClient(data []byte) (TlObject, int, string, error) {
 		}
 		return &obj, typeObj.ClientId, typeObj.Extra, nil
 
+	case "chatAdministrator":
+		var obj ChatAdministrator
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return nil, 0, "", err
+		}
+		return &obj, typeObj.ClientId, typeObj.Extra, nil
 	case "chatAdministratorRights":
 		var obj ChatAdministratorRights
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return nil, 0, "", err
+		}
+		return &obj, typeObj.ClientId, typeObj.Extra, nil
+	case "chatAdministrators":
+		var obj ChatAdministrators
 		if err := json.Unmarshal(data, &obj); err != nil {
 			return nil, 0, "", err
 		}

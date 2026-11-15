@@ -649,6 +649,28 @@ func (t GetChat) MarshalJSON() ([]byte, error) {
 	}{TypeStr: "getChat", Extra: t.Extra, Alias: (*Alias)(&t)})
 }
 
+// GetChatAdministrators Returns a list of administrators of the chat with their custom titles
+type GetChatAdministrators struct {
+	Extra string `json:"@extra,omitempty"` // @extra field
+	// Chat identifier
+	ChatId int64 `json:"chat_id"`
+}
+
+func (t *GetChatAdministrators) setExtra(extra string) { t.Extra = extra }
+
+func (t GetChatAdministrators) GetType() string {
+	return "getChatAdministrators"
+}
+
+func (t GetChatAdministrators) MarshalJSON() ([]byte, error) {
+	type Alias GetChatAdministrators
+	return json.Marshal(&struct {
+		TypeStr string `json:"@type"`
+		Extra   string `json:"@extra,omitempty"`
+		*Alias
+	}{TypeStr: "getChatAdministrators", Extra: t.Extra, Alias: (*Alias)(&t)})
+}
+
 // GetChatMember Returns information about a single member of a chat
 type GetChatMember struct {
 	Extra string `json:"@extra,omitempty"` // @extra field

@@ -339,6 +339,18 @@ func (c *Client) GetChat(chatId int64) (*Chat, error) {
 	return resp.(*Chat), nil
 }
 
+// GetChatAdministrators Returns a list of administrators of the chat with their custom titles
+func (c *Client) GetChatAdministrators(chatId int64) (*ChatAdministrators, error) {
+	req := &GetChatAdministrators{
+		ChatId: chatId,
+	}
+	resp, err := c.Send(req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.(*ChatAdministrators), nil
+}
+
 // GetChatMember Returns information about a single member of a chat
 func (c *Client) GetChatMember(chatId int64, memberId MessageSender) (*ChatMember, error) {
 	req := &GetChatMember{
