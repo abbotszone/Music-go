@@ -1,18 +1,19 @@
-// ==========================================================
-// Copyright (c) 2026 ArtistBots
-// All Rights Reserved.
-//
-// Project      : ArtistBots API Telegram Music Bot
-// Powered By   : Artist
-// Type         : API Based Telegram Music Bot
-//
-// Bot          : @ArtistApibot
-// Channel      : https://t.me/artistbots
-// GitHub       : https://github.com/elevenyts/ArtistMusic
-//
-// Unauthorized copying, modification, or redistribution
-// of this source code without permission is prohibited.
-// ==========================================================
+/*
+ * ● ArtistMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 ArtistMusic
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/elevenyts/ArtistMusic
+ */
 
 package platforms
 
@@ -27,103 +28,187 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
+	"ArtistMusic/ArtistMusic/config"
+	state "ArtistMusic/ArtistMusic/models"
+	"ArtistMusic/internal/logger"
+	td "github.com/ArtistMusic/Artist"
 )
 
-// ArtistbotsAPI downloads YouTube tracks through
+// ───────────── artistbots_api ─────────────
+
+const (
+	audioDownloadTimeout = 300 * time.Second
+	videoDownloadTimeout = 600 * time.Second
+
+	minValidDownloadBytes = 10_000
+)
+
+// PlatformArtistbotsApi downloads YouTube tracks through the Artistbots API:
 //
 //	GET {ARTISTBOTS_API_URL}/download?url=VIDEO_ID&type=audio|video&api_key=KEY
 //
-// Priority 88 so it is listed before yt-dlp; Download() races them anyway.
-type ArtistbotsAPI struct{}
+// The endpoint answers with JSON carrying a download link (download_url); the
+// file is then fetched from that link. If the endpoint streams the media
+// directly instead, the body is saved as-is.
+const PlatformArtistbotsApi state.PlatformName = "ArtistbotsApi"
 
-func init() { Register(&ArtistbotsAPI{}) }
+var artistbotsHTTP = &http.Client{}
 
-func (a *ArtistbotsAPI) Name() models.PlatformName { return "ArtistbotsApi" }
-func (a *ArtistbotsAPI) Priority() int             { return 88 }
-func (a *ArtistbotsAPI) CanGet(string) bool        { return false }
-func (a *ArtistbotsAPI) Get(string, bool) ([]*models.Track, error) {
-	return nil, errors.New("not a search platform")
-}
-func (a *ArtistbotsAPI) CanDownload(s models.PlatformName) bool {
-	return s == PlatformYouTube && config.C.ArtistbotsURL != "" && config.C.ArtistbotsKey != ""
+type ArtistbotsApiPlatform struct{}
+
+func init() {
+	Register(&ArtistbotsApiPlatform{})
 }
 
-func (a *ArtistbotsAPI) Download(ctx context.Context, t *models.Track) (string, error) {
-	typ := "audio"
-	if t.Video {
-		typ = "video"
+func (a *ArtistbotsApiPlatform) Name() state.PlatformName { return PlatformArtistbotsApi }
+
+// Priority 88: tried before ArtistApi (85) and yt-dlp (60) for YouTube tracks.
+func (a *ArtistbotsApiPlatform) Priority() int { return 88 }
+
+func (a *ArtistbotsApiPlatform) CanGet(_ string) bool { return false }
+
+func (a *ArtistbotsApiPlatform) Get(_ string, _ bool) ([]*state.Track, error) {
+	return nil, errors.New("artistbotsapi platform does not support search")
+}
+
+func (a *ArtistbotsApiPlatform) CanDownload(source state.PlatformName) bool {
+	if config.ArtistbotsAPIURL == "" || config.ArtistbotsAPIKey == "" {
+		return false
 	}
-	q := url.Values{"url": {t.ID}, "type": {typ}, "api_key": {config.C.ArtistbotsKey}}
-	resp, err := get(ctx, config.C.ArtistbotsURL+"/download?"+q.Encode())
+	return source == PlatformYouTube
+}
+
+func (a *ArtistbotsApiPlatform) Download(
+	ctx context.Context,
+	track *state.Track,
+	_ *td.Message,
+) (string, error) {
+	if p := findFileIn(slotDir(ctx), track); p != "" {
+		logger.Debug("ArtistbotsApi: cache hit " + p)
+		return p, nil
+	}
+
+	if track.ID == "" {
+		return "", errors.New("artistbotsapi: missing video id")
+	}
+
+	dtype, ext, timeout := "audio", ".mp3", audioDownloadTimeout
+	if track.Video {
+		dtype, ext, timeout = "video", ".mp4", videoDownloadTimeout
+	}
+
+	dctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	path := getPathIn(slotDir(ctx), track, ext)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", errors.New("artistbotsapi: cannot create downloads dir")
+	}
+
+	fail := func(err error) (string, error) {
+		os.Remove(path)
+		if ctx.Err() != nil {
+			return "", ctx.Err() // cancelled by the caller
+		}
+		if dctx.Err() != nil {
+			return "", errors.New("artistbotsapi: request timed out")
+		}
+		return "", scrubArtistbotsErr(err)
+	}
+
+	base := strings.TrimRight(config.ArtistbotsAPIURL, "/")
+	if !strings.HasSuffix(base, "/download") {
+		base += "/download"
+	}
+	q := url.Values{}
+	q.Set("url", track.ID)
+	q.Set("type", dtype)
+	q.Set("api_key", config.ArtistbotsAPIKey)
+
+	resp, err := artistbotsGet(dctx, base+"?"+q.Encode())
 	if err != nil {
-		return "", scrub(err)
+		return fail(fmt.Errorf("artistbotsapi request failed: %w", err))
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("artistbotsapi returned %d", resp.StatusCode)
+		return fail(fmt.Errorf("artistbotsapi returned %d", resp.StatusCode))
 	}
 
-	body := resp.Body
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	body := io.Reader(resp.Body)
+
 	if strings.Contains(ct, "json") || strings.HasPrefix(ct, "text/") {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		link, err := parseLink(raw)
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		if err != nil {
-			return "", err
+			return fail(fmt.Errorf("artistbotsapi read failed: %w", err))
 		}
-		r2, err := get(ctx, link)
+
+		link, err := parseArtistbotsLink(raw, config.ArtistbotsAPIURL)
 		if err != nil {
-			return "", scrub(err)
+			return fail(err)
 		}
-		defer r2.Body.Close()
-		if r2.StatusCode >= 400 {
-			return "", fmt.Errorf("artistbotsapi file returned %d", r2.StatusCode)
+
+		resp2, err := artistbotsGet(dctx, link)
+		if err != nil {
+			return fail(fmt.Errorf("artistbotsapi file request failed: %w", err))
 		}
-		body = r2.Body
+		defer resp2.Body.Close()
+
+		if resp2.StatusCode >= 400 {
+			return fail(fmt.Errorf("artistbotsapi file returned %d", resp2.StatusCode))
+		}
+		body = resp2.Body
 	}
 
-	dir := dirOf(ctx)
-	_ = os.MkdirAll(dir, 0o755)
-	ext := ".m4a"
-	if t.Video {
-		ext = ".mp4"
-	}
-	path := filepath.Join(dir, prefix(t)+ext)
-	f, err := os.Create(path)
+	out, err := os.Create(path)
 	if err != nil {
-		return "", err
+		return fail(errors.New("artistbotsapi: cannot create file"))
 	}
-	_, cerr := io.Copy(f, body)
-	f.Close()
-	if cerr != nil {
-		return "", scrub(cerr)
+	if _, err := io.Copy(out, body); err != nil {
+		out.Close()
+		return fail(fmt.Errorf("artistbotsapi download failed: %w", err))
 	}
-	if !validFile(path) {
-		return "", errors.New("artistbotsapi returned an invalid or empty file")
+	if err := out.Close(); err != nil {
+		return fail(errors.New("artistbotsapi: cannot write file"))
 	}
+
+	info, statErr := os.Stat(path)
+	if statErr != nil || info.Size() < minValidDownloadBytes {
+		return fail(errors.New("artistbotsapi returned an invalid or empty file"))
+	}
+
 	return path, nil
 }
 
-func get(ctx context.Context, u string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+func artistbotsGet(ctx context.Context, rawURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	return http.DefaultClient.Do(req)
+	return artistbotsHTTP.Do(req)
 }
 
-func parseLink(raw []byte) (string, error) {
+// parseArtistbotsLink extracts the download link from the API's JSON reply.
+func parseArtistbotsLink(raw []byte, apiBase string) (string, error) {
 	var m map[string]any
-	if json.Unmarshal(raw, &m) != nil {
+	if err := json.Unmarshal(raw, &m); err != nil {
 		return "", errors.New("artistbotsapi: unexpected response")
 	}
+
 	if ok, has := m["success"].(bool); has && !ok {
 		return "", errors.New("artistbotsapi: request rejected")
 	}
+	if st, has := m["status"].(string); has {
+		switch strings.ToLower(st) {
+		case "error", "failed", "fail":
+			return "", errors.New("artistbotsapi: request failed")
+		}
+	}
+
 	pick := func(mm map[string]any) string {
 		for _, k := range []string{"download_url", "url", "link", "stream_url"} {
 			if s, ok := mm[k].(string); ok && strings.TrimSpace(s) != "" {
@@ -132,28 +217,39 @@ func parseLink(raw []byte) (string, error) {
 		}
 		return ""
 	}
+
 	link := pick(m)
 	if link == "" {
-		if d, ok := m["data"].(map[string]any); ok {
-			link = pick(d)
+		if data, ok := m["data"].(map[string]any); ok {
+			link = pick(data)
 		}
 	}
 	if link == "" {
 		return "", errors.New("artistbotsapi: no download link in response")
 	}
+
 	if strings.HasPrefix(link, "/") {
-		link = config.C.ArtistbotsURL + link
+		link = strings.TrimRight(apiBase, "/") + link
 	}
-	if u, err := url.Parse(link); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+
+	safe, err := sanitizeMediaURL(link)
+	if err != nil {
 		return "", errors.New("artistbotsapi: unsafe download link")
 	}
-	return link, nil
+	return safe, nil
 }
 
-// scrub removes the API key / base URL from error text so they never reach chat or logs.
-func scrub(err error) error {
+// scrubArtistbotsErr removes the API key and base URL from an error message.
+func scrubArtistbotsErr(err error) error {
+	if err == nil {
+		return nil
+	}
 	msg := err.Error()
-	for _, s := range []string{config.C.ArtistbotsKey, url.QueryEscape(config.C.ArtistbotsKey), config.C.ArtistbotsURL} {
+	for _, s := range []string{
+		config.ArtistbotsAPIKey,
+		url.QueryEscape(config.ArtistbotsAPIKey),
+		config.ArtistbotsAPIURL,
+	} {
 		if s != "" {
 			msg = strings.ReplaceAll(msg, s, "***")
 		}

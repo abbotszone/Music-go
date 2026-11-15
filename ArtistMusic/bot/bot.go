@@ -1,185 +1,95 @@
-// ==========================================================
-// Copyright (c) 2026 ArtistBots
-// All Rights Reserved.
-//
-// Project      : ArtistBots API Telegram Music Bot
-// Powered By   : Artist
-// Type         : API Based Telegram Music Bot
-//
-// Bot          : @ArtistApibot
-// Channel      : https://t.me/artistbots
-// GitHub       : https://github.com/elevenyts/ArtistMusic
-//
-// Unauthorized copying, modification, or redistribution
-// of this source code without permission is prohibited.
-// ==========================================================
+/*
+ * ● ArtistMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 ArtistMusic
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/elevenyts/ArtistMusic
+ */
 
 package bot
 
 import (
-	"context"
-	"fmt"
-	"sync"
-	"time"
-
-	tg "github.com/amarnathcjd/gogram/telegram"
-
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/queue"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/store"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/voice"
+	"ArtistMusic/ArtistMusic/voice"
+	td "github.com/ArtistMusic/Artist"
+	"github.com/ArtistMusic/Artist/filters/callbackquery"
 )
 
-type Bot struct {
-	c   *tg.Client
-	db  *store.Store
-	eng voice.Engine
+// ───────────── bot ─────────────
 
-	bcMu     sync.Mutex
-	bcCancel context.CancelFunc // non-nil while a broadcast is running
-}
-
-func New(db *store.Store, eng voice.Engine) (*Bot, error) {
-	c, err := tg.NewClient(tg.ClientConfig{
-		AppID: config.C.APIID, AppHash: config.C.APIHash, MemorySession: true,
+func Init(bot *td.Client, assistants *voice.AssistantManager) {
+	assistants.ForEach(func(a *voice.Assistant) {
+		a.Client.UpdatesGetState()
 	})
-	if err != nil {
-		return nil, err
-	}
-	if err := c.LoginBot(config.C.Token); err != nil {
-		return nil, err
-	}
-	b := &Bot{c: c, db: db, eng: eng}
-	eng.OnEnded(b.onEnded)
-	b.register()
-	return b, nil
-}
 
-func (b *Bot) Idle() { b.c.Idle() }
+	// General
+	bot.OnCommand("start", WithBlacklistMessage(startHandler))
+	bot.OnCommand("help", WithBlacklistMessage(helpHandler))
+	bot.OnCommand("ping", WithBlacklistMessage(pingHandler))
+	bot.OnCommand("queue", WithBlacklistMessage(queueHandler))
+	bot.OnCommand("loop", WithBlacklistMessage(loopHandler))
+	bot.OnCommand("setloop", WithBlacklistMessage(loopHandler))
+	bot.OnCommand("nothumb", WithBlacklistMessage(nothumbHandler))
+	bot.OnCommand("nothumbs", WithBlacklistMessage(nothumbHandler))
+	bot.OnCommand("autoplay", WithBlacklistMessage(autoplayHandler))
 
-// chat returns the chat state, loading autoplay / nothumb from MongoDB the first time.
-func (b *Bot) chat(chatID int64) *queue.Chat {
-	ch := queue.Get(chatID)
-	if !ch.Loaded {
-		ch.Autoplay, ch.NoThumb = b.db.Settings(chatID)
-		ch.Loaded = true
-	}
-	return ch
-}
+	// Play
+	bot.OnCommand("play", WithBlacklistMessage(playHandler))
+	bot.OnCommand("fplay", WithBlacklistMessage(fplayHandler))
+	bot.OnCommand("playforce", WithBlacklistMessage(fplayHandler))
+	bot.OnCommand("vplay", WithBlacklistMessage(vplayHandler))
+	bot.OnCommand("fvplay", WithBlacklistMessage(fvplayHandler))
+	bot.OnCommand("vfplay", WithBlacklistMessage(fvplayHandler))
+	bot.OnCommand("vplayforce", WithBlacklistMessage(fvplayHandler))
 
-// ───────────── playback core ─────────────
+	// Playback control
+	bot.OnCommand("stop", WithBlacklistMessage(stopHandler))
+	bot.OnCommand("end", WithBlacklistMessage(stopHandler))
+	bot.OnCommand("skip", WithBlacklistMessage(skipHandler))
+	bot.OnCommand("pause", WithBlacklistMessage(pauseHandler))
+	bot.OnCommand("resume", WithBlacklistMessage(resumeHandler))
+	bot.OnCommand("replay", WithBlacklistMessage(replayHandler))
+	bot.OnCommand("mute", WithBlacklistMessage(muteHandler))
+	bot.OnCommand("unmute", WithBlacklistMessage(unmuteHandler))
+	bot.OnCommand("seek", WithBlacklistMessage(seekHandler))
+	bot.OnCommand("seekback", WithBlacklistMessage(seekbackHandler))
 
-func (b *Bot) startTrack(chatID int64, t *models.Track) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	file, err := platforms.Download(ctx, t)
-	if err != nil {
-		return err
-	}
-	if err := b.eng.Play(chatID, file, t.Video); err != nil {
-		return err
-	}
-	ch := b.chat(chatID)
-	ch.Current = t
-	b.nowPlaying(chatID, t)
-	return nil
-}
+	// Owner / maintenance
+	bot.OnCommand("broadcast", WithBlacklistMessage(broadcastHandler))
+	bot.OnCommand("gcast", WithBlacklistMessage(broadcastHandler))
+	bot.OnCommand("bcast", WithBlacklistMessage(broadcastHandler))
+	bot.OnCommand("reload", WithBlacklistMessage(reloadHandler))
+	bot.OnCommand("restart", WithBlacklistMessage(handleRestart))
 
-// onEnded runs when a stream finishes: loop → queue → autoplay → stop.
-func (b *Bot) onEnded(chatID int64) {
-	ch := b.chat(chatID)
-	prev := ch.Current
-	for {
-		next := ch.Next()
-		if next == nil && ch.Autoplay && prev != nil {
-			if rel, err := platforms.Related(prev.ID, 5); err == nil {
-				for _, t := range rel {
-					t.Requester = "Autoplay"
-				}
-				ch.Add(config.C.QueueLimit, rel...)
-				next = ch.Next()
-			}
-		}
-		if next == nil {
-			_ = b.eng.Stop(chatID)
-			ch.Clear()
-			return
-		}
-		if err := b.startTrack(chatID, next); err != nil {
-			b.send(chatID, "✗ Could not play <b>"+next.Title+"</b>, skipping.\n"+short(err.Error()))
-			prev = next
-			continue
-		}
-		return
-	}
-}
+	// Callbacks
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(broadcastCancelCB), callbackquery.Regex("^bcast_cancel$"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(restartConfirmHandler), callbackquery.Regex("^restart:(bot|replay)$"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(startCB), callbackquery.Equal("start"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(helpCB), callbackquery.Equal("help_cb"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(helpCallbackHandler), callbackquery.Regex("^help:(.+)$"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(cancelHandler), callbackquery.Equal("cancel"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(closeHandler), callbackquery.Equal("close"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(roomHandle), callbackquery.Regex("^room:-?\\d+:\\w+$"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(emptyCBHandler), callbackquery.Regex("progress"))
+	bot.OnUpdateNewCallbackQuery(WithBlacklistCallback(autoplayCallbackHandler), callbackquery.Equal("autoplay:toggle"))
 
-func (b *Bot) nowPlaying(chatID int64, t *models.Track) {
-	ch := b.chat(chatID)
-	ap := "off"
-	if ch.Autoplay {
-		ap = "on"
-	}
-	who := t.Requester
-	if who == "" {
-		who = "—"
-	}
-	text := fmt.Sprintf("➲ <b>NOW STREAMING</b>\n\n🎧 <a href=\"%s\">%s</a>\n⏱ %s | 👤 %s\n\n❤️ POWERED BY ARTIST",
-		t.URL, esc(trunc(t.Title, 40)), dur(t.Duration), esc(who))
-	if !ch.NoThumb && t.Artwork != "" {
-		if b.sendPhoto(chatID, t.Artwork, text, controls(ap)...) {
-			return
-		}
-	}
-	b.send(chatID, text, controls(ap)...) // /nothumb on, or photo failed
-}
+	// Updates
+	bot.OnUpdateChatMember(handleParticipantUpdate, nil)
+	bot.OnMessage(WithBlacklistMessage(handleActions), actionFilter)
+	bot.OnUpdateFile(downloadUpdateHandler, nil)
 
-func controls(ap string) [][]button {
-	return [][]button{
-		{{Text: "⏸", Data: "ctl:pause"}, {Text: "▷", Data: "ctl:resume"}, {Text: "↻", Data: "ctl:replay"}, {Text: "⏭", Data: "ctl:skip"}, {Text: "◻", Data: "ctl:stop"}},
-		{{Text: "« 15s", Data: "ctl:back"}, {Text: "15s »", Data: "ctl:fwd"}},
-		{{Text: "◉ AUTOPLAY : " + ap, Data: "ctl:autoplay"}, {Text: "✕ CLOSE", Data: "ctl:close"}},
-	}
-}
+	assistants.ForEach(func(a *voice.Assistant) {
+		a.Ntg.OnStreamEnd(streamEndHandler)
+		a.Ntg.OnCallDiscarded(callDiscardedHandler)
+	})
 
-// ───────────── small helpers ─────────────
-
-func dur(s int) string {
-	if s <= 0 {
-		return "live"
-	}
-	if s >= 3600 {
-		return fmt.Sprintf("%dh %dm", s/3600, s%3600/60)
-	}
-	return fmt.Sprintf("%dm %02ds", s/60, s%60)
-}
-
-func trunc(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n-1]) + "…"
-}
-
-func short(s string) string { return trunc(s, 300) }
-
-func esc(s string) string {
-	r := []rune(s)
-	out := make([]rune, 0, len(r))
-	for _, c := range r {
-		switch c {
-		case '<':
-			out = append(out, []rune("&lt;")...)
-		case '>':
-			out = append(out, []rune("&gt;")...)
-		case '&':
-			out = append(out, []rune("&amp;")...)
-		default:
-			out = append(out, c)
-		}
-	}
-	return string(out)
+	go MonitorRooms()
 }

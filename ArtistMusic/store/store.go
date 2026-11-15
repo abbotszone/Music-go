@@ -1,91 +1,121 @@
-// ==========================================================
-// Copyright (c) 2026 ArtistBots
-// All Rights Reserved.
-//
-// Project      : ArtistBots API Telegram Music Bot
-// Powered By   : Artist
-// Type         : API Based Telegram Music Bot
-//
-// Bot          : @ArtistApibot
-// Channel      : https://t.me/artistbots
-// GitHub       : https://github.com/elevenyts/ArtistMusic
-//
-// Unauthorized copying, modification, or redistribution
-// of this source code without permission is prohibited.
-// ==========================================================
+/*
+ * ● ArtistMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 ArtistMusic
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/elevenyts/ArtistMusic
+ */
 
 package store
 
 import (
 	"context"
+	"slices"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"ArtistMusic/ArtistMusic/config"
+	"ArtistMusic/internal/logger"
+	"ArtistMusic/internal/utils"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type Store struct{ chats, users *mongo.Collection }
+// ───────────── database ─────────────
 
-func Connect(uri string) (*Store, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	cl, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+var (
+	client           *mongo.Client
+	database         *mongo.Database
+	settingsColl     *mongo.Collection
+	chatSettingsColl *mongo.Collection
+
+	logr              = logger.GetLogger("Database")
+	dbCache           = utils.NewCache[string, any](60 * time.Minute)
+	chatSettingsCache = utils.NewCache[int64, *ChatSettings](60 * time.Minute)
+)
+
+func Init(mongoURL string) (func(), error) {
+	var err error
+	logr.Debug("Initializing MongoDB...")
+	client, err = mongo.Connect(options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
-	if err := cl.Ping(ctx, nil); err != nil {
-		return nil, err
-	}
-	db := cl.Database("artistmusic")
-	return &Store{chats: db.Collection("chats"), users: db.Collection("users")}, nil
+
+	logr.Debug("Successfully connected to MongoDB.")
+
+	database = client.Database(config.DBName)
+	settingsColl = store.Collection("bot_settings")
+	chatSettingsColl = store.Collection("chat_settings")
+
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := client.Disconnect(ctx); err != nil {
+			logr.Errorf("Error while disconnecting MongoDB: %v", err)
+		} else {
+			logr.Info("MongoDB disconnected successfully")
+		}
+	}, nil
 }
 
-func up(c *mongo.Collection, id int64, set bson.M) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = c.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": set}, options.Update().SetUpsert(true))
+// ───────────── helpers ─────────────
+
+var upsertOpt = options.UpdateOne().SetUpsert(true)
+
+func ctx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 5*time.Second)
 }
 
-func (s *Store) SeenChat(id int64)                { up(s.chats, id, bson.M{"seen": time.Now()}) }
-func (s *Store) SeenUser(id int64)                { up(s.users, id, bson.M{"seen": time.Now()}) }
-func (s *Store) SetAutoplay(id int64, on bool)    { up(s.chats, id, bson.M{"autoplay": on}) }
-func (s *Store) SetNoThumb(id int64, off bool)    { up(s.chats, id, bson.M{"nothumb": off}) }
-
-// Settings returns (autoplay, nothumb); autoplay defaults to true.
-func (s *Store) Settings(id int64) (bool, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var d struct {
-		Autoplay *bool `bson:"autoplay"`
-		NoThumb  bool  `bson:"nothumb"`
+// addUnique adds an element to a slice if it's not already present.
+// Returns the new slice and true if the element was added.
+func addUnique[T comparable](slice []T, element T) ([]T, bool) {
+	if slices.Contains(slice, element) {
+		return slice, false
 	}
-	if s.chats.FindOne(ctx, bson.M{"_id": id}).Decode(&d) != nil {
-		return true, false
-	}
-	ap := true
-	if d.Autoplay != nil {
-		ap = *d.Autoplay
-	}
-	return ap, d.NoThumb
+	return append(slice, element), true
 }
 
-func ids(c *mongo.Collection) []int64 {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cur, err := c.Find(ctx, bson.M{})
-	if err != nil {
-		return nil
-	}
-	var out []int64
-	for cur.Next(ctx) {
-		var d struct{ ID int64 `bson:"_id"` }
-		if cur.Decode(&d) == nil {
-			out = append(out, d.ID)
+// removeElement removes an element from a slice if it's present.
+// Returns the new slice and true if the element was removed.
+func removeElement[T comparable](slice []T, element T) ([]T, bool) {
+	for i, v := range slice {
+		if v == element {
+			return append(slice[:i], slice[i+1:]...), true
 		}
 	}
-	return out
+	return slice, false
 }
 
-func (s *Store) ChatIDs() []int64 { return ids(s.chats) }
-func (s *Store) UserIDs() []int64 { return ids(s.users) }
+// contains checks if a slice contains an element.
+func contains[T comparable](slice []T, element T) bool {
+	return slices.Contains(slice, element)
+}
+
+// ───────────── maintenance ─────────────
+
+func IsMaintenanceEnabled() (bool, error) {
+	state, err := getBotState()
+	if err != nil {
+		return false, err
+	}
+	return state.Maintenance.Enabled, nil
+}
+
+// ───────────── logger ─────────────
+
+func IsLoggerEnabled() (bool, error) {
+	state, err := getBotState()
+	if err != nil {
+		return false, err
+	}
+	return state.LoggerEnabled, nil
+}

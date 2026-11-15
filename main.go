@@ -1,52 +1,196 @@
-// ==========================================================
-// Copyright (c) 2026 ArtistBots
-// All Rights Reserved.
-//
-// Project      : ArtistBots API Telegram Music Bot
-// Powered By   : Artist
-// Type         : API Based Telegram Music Bot
-//
-// Bot          : @ArtistApibot
-// Channel      : https://t.me/artistbots
-// GitHub       : https://github.com/elevenyts/ArtistMusic
-//
-// Unauthorized copying, modification, or redistribution
-// of this source code without permission is prohibited.
-// ==========================================================
+/*
+ * ● ArtistMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 ArtistMusic
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/elevenyts/ArtistMusic
+ */
 
 package main
 
-import (
-	"log"
-	"os"
+/*
+#cgo CFLAGS: -I${SRCDIR}
+#cgo linux LDFLAGS: -L${SRCDIR} -lntgcalls -lm -lz
+#cgo darwin LDFLAGS: -L${SRCDIR} -lntgcalls -lc++ -lz -lbz2 -liconv -framework AVFoundation -framework AudioToolbox -framework CoreAudio -framework QuartzCore -framework CoreMedia -framework VideoToolbox -framework AppKit -framework Metal -framework MetalKit -framework OpenGL -framework IOSurface -framework ScreenCaptureKit
 
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/bot"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/store"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/voice"
+// Currently is supported only dynamically linked library on Windows due to
+// https://github.com/golang/go/issues/63903
+#cgo windows LDFLAGS: -L${SRCDIR} -lntgcalls
+#include "internal/artistcalls/ntgcalls.h"
+#if defined(__linux__)
+#include "glibc_compatibility.h"
+#endif
+*/
+import "C"
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"time"
+
+	"ArtistMusic/ArtistMusic/bot"
+	"ArtistMusic/ArtistMusic/config"
+	"ArtistMusic/ArtistMusic/store"
+	"ArtistMusic/ArtistMusic/voice"
+	"ArtistMusic/internal/locales"
+	"ArtistMusic/internal/logger"
 )
 
 func main() {
-	config.Load()
-	if config.C.Token == "" || config.C.APIID == 0 || config.C.APIHash == "" {
-		log.Fatal("TOKEN, API_ID and API_HASH are required (see .env.example)")
-	}
-	_ = os.MkdirAll("downloads", 0o755)
-	platforms.FetchCookies()
-
-	db, err := store.Connect(config.C.MongoURI)
+	f, err := os.OpenFile("logs.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		log.Fatalf("mongo: %v", err)
+		logger.Fatalf("failed to open logs.txt: %v", err)
+	}
+	defer f.Close()
+
+	logger.SetOutput(io.MultiWriter(os.Stderr, f))
+
+	if err := config.Load(); err != nil {
+		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	// Swap LogEngine for your ntgcalls-backed engine to get real audio.
-	var engine voice.Engine = &voice.LogEngine{}
+	if err := checkDependencies(); err != nil {
+		logger.Fatalf("dependency check failed: %v", err)
+	}
 
-	b, err := bot.New(db, engine)
+	if err := refreshDirs(); err != nil {
+		logger.Fatalf("failed to refresh directories: %v", err)
+	}
+
+	logger.Debug("Initializing MongoDB...")
+
+	closeDB, err := store.Init(config.MongoURI)
 	if err != nil {
-		log.Fatalf("bot: %v", err)
+		logger.Fatalf("failed to initialize database: %v", err)
 	}
-	log.Println("ArtistMusic is running")
-	b.Idle()
+	defer closeDB()
+
+	logger.Info("Database connected successfully")
+
+	if err := locales.Load(); err != nil {
+		logger.Fatalf("failed to load locales: %v", err)
+	}
+
+	logger.Debug("Initializing clients...")
+
+	shutdownCore, err := voice.Init()
+	if err != nil {
+		logger.Fatalf("failed to initialize core: %v", err)
+	}
+	defer shutdownCore()
+
+	if err := store.InitAssistantIndexes(voice.Assistants.Count()); err != nil {
+		logger.Fatalf("failed to init assistants: %v", err)
+	}
+
+	bot.Init(voice.Bot, voice.Assistants)
+
+	startHTTPServer()
+
+	voice.Bot.Idle()
+}
+
+func startHTTPServer() {
+	// "/" and "/health" answer 200 so host health checks and uptime
+	// pingers see a healthy app (the default mux returned 404 for "/").
+	mux := http.NewServeMux()
+	healthy := func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}
+	mux.HandleFunc("/", healthy)
+	mux.HandleFunc("/health", healthy)
+
+	go func() {
+		addr := "0.0.0.0:" + config.Port
+
+		logger.Infof("HTTP server listening on %s", addr)
+
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			logger.Errorf("HTTP server failed: %v", err)
+		}
+	}()
+
+	go keepAlive()
+}
+
+// keepAlive pings the app's own public URL every few minutes so free hosts
+// (Render, Koyeb, ...) do not spin the instance down for inactivity, which
+// looks like the bot "restarting". Set KEEP_ALIVE_URL, or run on Render where
+// RENDER_EXTERNAL_URL is provided automatically.
+func keepAlive() {
+	defer func() { _ = recover() }()
+
+	url := os.Getenv("KEEP_ALIVE_URL")
+	if url == "" {
+		url = os.Getenv("RENDER_EXTERNAL_URL")
+	}
+	if url == "" {
+		return
+	}
+
+	logger.Infof("Keep-alive pings enabled for %s", url)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		resp, err := client.Get(url)
+		if err != nil {
+			logger.Warnf("keep-alive ping failed: %v", err)
+			continue
+		}
+		_ = resp.Body.Close()
+	}
+}
+
+func refreshDirs() error {
+	dirs := []string{
+		"./cache",
+		"./downloads",
+	}
+
+	for _, dir := range dirs {
+
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func checkDependencies() error {
+	for _, bin := range []string{
+		"ffmpeg",
+		"ffprobe",
+		"yt-dlp",
+	} {
+		if _, err := exec.LookPath(bin); err != nil {
+			return fmt.Errorf(
+				"required dependency %q was not found in your PATH; "+
+					"please install %s and ensure it is accessible from PATH before starting ArtistMusic",
+				bin,
+				bin,
+			)
+		}
+	}
+	return nil
 }

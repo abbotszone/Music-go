@@ -1,198 +1,388 @@
-// ==========================================================
-// Copyright (c) 2026 ArtistBots
-// All Rights Reserved.
-//
-// Project      : ArtistBots API Telegram Music Bot
-// Powered By   : Artist
-// Type         : API Based Telegram Music Bot
-//
-// Bot          : @ArtistApibot
-// Channel      : https://t.me/artistbots
-// GitHub       : https://github.com/elevenyts/ArtistMusic
-//
-// Unauthorized copying, modification, or redistribution
-// of this source code without permission is prohibited.
-// ==========================================================
+/*
+ * ● ArtistMusic
+ * ○ A high-performance engine for streaming music in Telegram voicechats.
+ *
+ * Copyright (C) 2026 ArtistMusic
+ *
+ * This program is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License as published by the Free Software Foundation,
+ * either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * Repository: https://github.com/elevenyts/ArtistMusic
+ */
 
 package platforms
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
+	"math/rand"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
+	"ArtistMusic/ArtistMusic/config"
+	state "ArtistMusic/ArtistMusic/models"
+	"ArtistMusic/internal/logger"
+	td "github.com/ArtistMusic/Artist"
+	"resty.dev/v3"
 )
 
-const (
-	PlatformYouTube models.PlatformName = "YouTube"
-	cookiesFile                         = "cookies.txt"
+// ───────────── ytdlp ─────────────
+
+const PlatformYtDlp state.PlatformName = "YtDlp"
+
+type YtdlpPlatform struct{}
+
+type ytdlpInfo struct {
+	ID          string      `json:"id"`
+	Title       string      `json:"title"`
+	Duration    float64     `json:"duration"`
+	Thumbnail   string      `json:"thumbnail"`
+	URL         string      `json:"webpage_url"`
+	OriginalURL string      `json:"original_url"`
+	Uploader    string      `json:"uploader"`
+	IsLive      bool        `json:"is_live"`
+	Extractor   string      `json:"extractor"`
+	Entries     []ytdlpInfo `json:"entries"`
+}
+
+var (
+	bannedExtractors = map[string]bool{
+		"alphaporno": true, "beeg": true, "behindkink": true, "bongacams": true,
+		"cam4": true, "cammodels": true, "camsoda": true, "chaturbate": true,
+		"drtuber": true, "eporner": true, "erocast": true, "eroprofile": true,
+		"fourtube": true, "goshgay": true, "hellporno": true, "iwara": true,
+		"lovehomeporn": true, "manyvids": true, "motherless": true, "murrtube": true,
+		"nonktube": true, "noodlemagazine": true, "nubilesporn": true, "nuvid": true,
+		"oftv": true, "peekvids": true, "pornbox": true, "pornflip": true,
+		"pornhub": true, "pornotube": true, "pornovoisines": true, "pornoxo": true,
+		"redgifs": true, "redtube": true, "rule34video": true, "sauceplus": true,
+		"sexu": true, "slutload": true, "spankbang": true, "stripchat": true,
+		"sunporno": true, "thisvid": true, "tnaflix": true, "toypics": true,
+		"txxx": true, "xhamster": true, "xnxx": true, "xvideos": true,
+		"xxxymovies": true, "youjizz": true, "youporn": true, "zenporn": true,
+	}
+	// audioOnlyExtractors are sites without video streams; a video request is
+	// silently downgraded to audio.
+	audioOnlyExtractors = map[string]bool{
+		"soundcloud": true,
+	}
+	ytURLPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(youtube\.com|youtu\.be|music\.youtube\.com)`),
+	}
 )
 
-var ytRe = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)/\S+`)
-var idRe = regexp.MustCompile(`(?i)(?:v=|youtu\.be/|shorts/|live/|embed/)([A-Za-z0-9_-]{11})`)
-
-// YtDlp resolves YouTube links / searches and downloads through yt-dlp.
-type YtDlp struct{}
-
-func init() { Register(&YtDlp{}) }
-
-func (y *YtDlp) Name() models.PlatformName { return PlatformYouTube }
-func (y *YtDlp) Priority() int             { return 60 }
-
-// Any text that is not another platform's URL is treated as a YouTube search.
-func (y *YtDlp) CanGet(q string) bool { return true }
-
-func (y *YtDlp) CanDownload(s models.PlatformName) bool { return s == PlatformYouTube }
-
-func (y *YtDlp) Download(ctx context.Context, t *models.Track) (string, error) {
-	return y.download(ctx, t, cookiesAvailable())
+func init() {
+	Register(&YtdlpPlatform{})
 }
 
-type ytInfo struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Duration  float64  `json:"duration"`
-	Thumbnail string   `json:"thumbnail"`
-	URL       string   `json:"webpage_url"`
-	Thumbs    []struct{ URL string `json:"url"` } `json:"thumbnails"`
-}
+func (y *YtdlpPlatform) Name() state.PlatformName { return PlatformYtDlp }
+func (y *YtdlpPlatform) Priority() int            { return 60 }
 
-func (y *YtDlp) Get(q string, video bool) ([]*models.Track, error) {
-	target := q
-	if !ytRe.MatchString(q) {
-		target = "ytsearch1:" + q
+func (y *YtdlpPlatform) CanGet(query string) bool {
+	if _, err := sanitizeMediaURL(query); err != nil {
+		return false
 	}
-	args := []string{"--dump-json", "--no-warnings", "--flat-playlist", "--playlist-end", fmt.Sprint(config.C.QueueLimit)}
-	if cookiesAvailable() {
-		args = append(args, "--cookies", cookiesFile)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "yt-dlp", append(args, target)...).Output()
+	parsed, err := url.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("yt-dlp metadata failed: %w", err)
+		return false
 	}
-	return parseInfos(out, video), nil
+	host := strings.ToLower(parsed.Host)
+	return host != "t.me" &&
+		host != "telegram.me" &&
+		host != "telegram.dog" &&
+		!strings.HasSuffix(host, ".t.me")
 }
 
-func parseInfos(out []byte, video bool) []*models.Track {
-	var tracks []*models.Track
-	sc := bufio.NewScanner(bytes.NewReader(out))
-	sc.Buffer(make([]byte, 1<<20), 1<<24)
-	for sc.Scan() {
-		var i ytInfo
-		if json.Unmarshal(sc.Bytes(), &i) != nil || i.ID == "" {
-			continue
-		}
-		if config.C.DurationLimit > 0 && int(i.Duration) > config.C.DurationLimit {
-			continue
-		}
-		// hqdefault.jpg exists for every video (yt-dlp may return webp, which Telegram rejects).
-		art := "https://i.ytimg.com/vi/" + i.ID + "/hqdefault.jpg"
-		tracks = append(tracks, &models.Track{
-			ID: i.ID, Title: i.Title, Artwork: art, Duration: int(i.Duration),
-			URL: "https://www.youtube.com/watch?v=" + i.ID, Source: PlatformYouTube, Video: video,
-		})
-	}
-	return tracks
-}
-
-// Related returns autoplay candidates (YouTube Mix of the given video).
-func Related(videoID string, limit int) ([]*models.Track, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "yt-dlp", "--dump-json", "--flat-playlist", "--no-warnings",
-		"--playlist-end", fmt.Sprint(limit+1),
-		"https://www.youtube.com/watch?v="+videoID+"&list=RD"+videoID).Output()
+func (y *YtdlpPlatform) Get(query string, video bool) ([]*state.Track, error) {
+	safeURL, err := sanitizeMediaURL(query)
 	if err != nil {
-		return nil, err
+		return nil, errUnsafeURL
 	}
-	var res []*models.Track
-	for _, t := range parseInfos(out, false) {
-		if t.ID != videoID {
-			res = append(res, t)
+
+	info, err := y.extractMetadata(safeURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract metadata: %w", err)
+	}
+
+	if info.IsLive {
+		return nil, errors.New("live streams are not supported")
+	}
+
+	if bannedExtractors[strings.ToLower(info.Extractor)] {
+		return nil, errors.New("adult content is not allowed")
+	}
+
+	var tracks []*state.Track
+	if len(info.Entries) > 0 {
+		for _, entry := range info.Entries {
+			if entry.IsLive || bannedExtractors[strings.ToLower(entry.Extractor)] {
+				continue
+			}
+			tracks = append(tracks, y.toTrack(&entry, video))
 		}
+	} else {
+		tracks = []*state.Track{y.toTrack(info, video)}
 	}
-	return res, nil
+
+	return tracks, nil
 }
 
-func (y *YtDlp) download(ctx context.Context, t *models.Track, cookies bool) (string, error) {
-	dir := dirOf(ctx)
-	_ = os.MkdirAll(dir, 0o755)
-	format := "bestaudio[ext=m4a]/bestaudio/best"
-	if t.Video {
-		format = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+func (y *YtdlpPlatform) CanDownload(source state.PlatformName) bool {
+	return source == PlatformYtDlp || source == PlatformYouTube
+}
+
+func (y *YtdlpPlatform) Download(
+	ctx context.Context,
+	track *state.Track,
+	_ *td.Message,
+) (string, error) {
+	if f := findFileIn(slotDir(ctx), track); f != "" {
+		logger.Debug("YtDlp: cache hit " + f)
+		return f, nil
 	}
-	args := []string{"-f", format, "--no-playlist", "--no-warnings", "--concurrent-fragments", "4",
-		"-o", filepath.Join(dir, prefix(t)+".%(ext)s")}
-	if t.Video {
-		args = append(args, "--merge-output-format", "mp4")
+
+	safeURL, err := sanitizeMediaURL(track.URL)
+	if err != nil {
+		return "", errUnsafeURL
 	}
-	if cookies && cookiesAvailable() {
-		args = append(args, "--cookies", cookiesFile)
+
+	args := []string{
+		"--no-playlist",
+		"--no-part",
+		"--geo-bypass",
+		"--no-warnings",
+		"--ignore-errors",
+		"--no-check-certificate",
+		"-q",
+		"-o", getPathIn(slotDir(ctx), track, ".%(ext)s"),
 	}
-	cmd := exec.CommandContext(ctx, "yt-dlp", append(args, t.URL)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if ctx.Err() != nil {
-			return "", ctx.Err()
+
+	if track.Video {
+		args = append(args,
+			"-f", "(b[height>=360][height<=1080]/bv*[height>=360][height<=1080]/bv*)+(ba[abr>=180][abr<=360]/ba)/b",
+		)
+	} else {
+		args = append(args,
+			"-f", "ba[abr>=180][abr<=360]/ba",
+			"-x",
+			"--concurrent-fragments", "4",
+		)
+	}
+
+	if y.isYouTubeURL(track.URL) && cookieModeOf(ctx) != cookiesOff {
+		if cookieFile, err := GetRandomCookieFile(); err == nil && cookieFile != "" {
+			args = append(args, "--cookies", cookieFile)
 		}
-		return "", fmt.Errorf("yt-dlp: %w (%s)", err, tail(string(out)))
 	}
-	files, _ := filepath.Glob(filepath.Join(dir, prefix(t)+".*"))
+
+	args = append(args, "--", safeURL)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		findAndRemoveIn(slotDir(ctx), track)
+		if isDownloadCancelled(err) {
+			return "", err
+		}
+		return "", fmt.Errorf(
+			"yt-dlp failed: %w\nstdout: %s\nstderr: %s",
+			err, strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String()),
+		)
+	}
+
+	p := findFileIn(slotDir(ctx), track)
+	if p == "" {
+		return "", errors.New("yt-dlp produced no output file")
+	}
+
+	logger.Infof("YtDlp: downloaded %s", p)
+	return p, nil
+}
+
+// ytdlpCookiesAvailable reports whether at least one cookie file is configured.
+func ytdlpCookiesAvailable() bool {
+	f, err := GetRandomCookieFile()
+	return err == nil && f != ""
+}
+
+func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	args := []string{
+		"-j", "--flat-playlist",
+		"--no-warnings", "--no-check-certificate",
+	}
+
+	if y.isYouTubeURL(urlStr) {
+		if cf, err := GetRandomCookieFile(); err == nil && cf != "" {
+			args = append(args, "--cookies", cf)
+		}
+	}
+
+	args = append(args, "--", urlStr)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("metadata extraction failed: %w\n%s", err, stderr.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+
+	if len(lines) > 1 {
+		var info ytdlpInfo
+		for _, line := range lines {
+			var entry ytdlpInfo
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				logger.Debugf("YtDlp: skip bad entry: %v", err)
+				continue
+			}
+			info.Entries = append(info.Entries, entry)
+		}
+		if len(info.Entries) == 0 {
+			return nil, errors.New("no valid entries in playlist")
+		}
+		return &info, nil
+	}
+
+	var info ytdlpInfo
+	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata JSON: %w", err)
+	}
+	return &info, nil
+}
+
+func (y *YtdlpPlatform) toTrack(info *ytdlpInfo, video bool) *state.Track {
+	if video && audioOnlyExtractors[strings.ToLower(info.Extractor)] {
+		video = false
+	}
+	return &state.Track{
+		ID:       info.ID,
+		Title:    info.Title,
+		Duration: int(info.Duration),
+		Artwork:  info.Thumbnail,
+		URL:      firstNonEmpty(info.OriginalURL, info.URL),
+		Source:   PlatformYtDlp,
+		Video:    video,
+	}
+}
+
+func (y *YtdlpPlatform) isYouTubeURL(urlStr string) bool {
+	for _, p := range ytURLPatterns {
+		if p.MatchString(urlStr) {
+			return true
+		}
+	}
+	return false
+}
+
+// ───────────── cookies ─────────────
+
+// cookieDir holds the yt-dlp cookie files (*.txt), relative to the working dir.
+const cookieDir = "config/cookies"
+
+var (
+	cachedFiles []string
+	cacheOnce   sync.Once
+	cookieClient      = resty.New().SetTimeout(30 * time.Second)
+)
+
+func init() {
+	logger.Debug("◇ Initializing cookies...")
+
+	_ = os.MkdirAll(cookieDir, 0o755)
+
+	urls := strings.FieldsSeq(config.CookiesLink)
+	for url := range urls {
+		if err := downloadCookieFile(url); err != nil {
+			logger.Warnf(
+				"Failed to download cookie file from %s: %v",
+				url,
+				err,
+			)
+		}
+	}
+}
+
+func downloadCookieFile(url string) error {
+	id := filepath.Base(url)
+	rawURL := "https://batbin.me/raw/" + id
+	filePath := filepath.Join(cookieDir, id+".txt")
+
+	resp, err := cookieClient.R().
+		SetResponseSaveFileName(filePath).
+		Get(rawURL)
+	if err != nil {
+		return err
+	}
+
+	if resp.IsStatusFailure() {
+		return fmt.Errorf(
+			"unexpected status %d from %s",
+			resp.StatusCode(),
+			rawURL,
+		)
+	}
+
+	return nil
+}
+
+func loadCookieCache() error {
+	files, err := filepath.Glob(filepath.Join(cookieDir, "*.txt"))
+	if err != nil {
+		return err
+	}
+
+	var filtered []string
+
 	for _, f := range files {
-		if validFile(f) {
-			return f, nil
+		if filepath.Base(f) == "example.txt" {
+			continue
 		}
+		filtered = append(filtered, f)
 	}
-	return "", errors.New("yt-dlp produced no file")
+
+	cachedFiles = filtered
+	return nil
 }
 
-func tail(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 200 {
-		return s[len(s)-200:]
-	}
-	return s
-}
+func GetRandomCookieFile() (string, error) {
+	var err error
 
-func cookiesAvailable() bool {
-	st, err := os.Stat(cookiesFile)
-	return err == nil && st.Size() > 0
-}
+	cacheOnce.Do(func() {
+		err = loadCookieCache()
+	})
 
-// FetchCookies downloads the cookies file from COOKIES_LINK (raw text URL) once at startup.
-func FetchCookies() {
-	if config.C.CookiesLink == "" {
-		return
+	if err != nil {
+		logger.Warnf("Failed to load cookie cache: %v", err)
+		return "", err
 	}
-	resp, err := http.Get(config.C.CookiesLink)
-	if err != nil || resp.StatusCode >= 400 {
-		return
-	}
-	defer resp.Body.Close()
-	if f, err := os.Create(cookiesFile); err == nil {
-		_, _ = io.Copy(f, resp.Body)
-		f.Close()
-	}
-}
 
-// ExtractVideoID pulls the 11-char id out of a YouTube URL.
-func ExtractVideoID(u string) string {
-	if m := idRe.FindStringSubmatch(u); len(m) > 1 {
-		return m[1]
+	if len(cachedFiles) == 0 {
+		logger.Warn("No cookie files available")
+		return "", nil
 	}
-	return ""
+
+	return cachedFiles[rand.Intn(len(cachedFiles))], nil
 }
