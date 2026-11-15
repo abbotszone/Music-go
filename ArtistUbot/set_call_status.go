@@ -1,0 +1,27 @@
+package artistubot
+
+import (
+	tg "github.com/amarnathcjd/gogram/telegram"
+
+	"ArtistMusic/ArtistCalls"
+)
+
+func (ctx *Context) setCallStatus(
+	call tg.InputGroupCall,
+	state artistcalls.MediaState,
+) error {
+	_, err := ctx.app.PhoneEditGroupCallParticipant(
+		&tg.PhoneEditGroupCallParticipantParams{
+			Call: call,
+			Participant: &tg.InputPeerUser{
+				UserID:     ctx.self.ID,
+				AccessHash: ctx.self.AccessHash,
+			},
+			Muted:              state.Muted,
+			VideoPaused:        state.VideoPaused,
+			VideoStopped:       state.VideoStopped,
+			PresentationPaused: state.PresentationPaused,
+		},
+	)
+	return err
+}
