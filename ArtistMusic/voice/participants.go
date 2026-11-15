@@ -41,13 +41,21 @@ func (ctx *Context) GetInputGroupCall(chatId int64) (tg.InputGroupCall, error) {
 		if err != nil {
 			return nil, err
 		}
-		retrievedCall = fullChat.FullChat.(*tg.ChannelFull).Call
+		chFull, ok := fullChat.FullChat.(*tg.ChannelFull)
+		if !ok {
+			return nil, fmt.Errorf("unexpected full chat type %T", fullChat.FullChat)
+		}
+		retrievedCall = chFull.Call
 	case *tg.InputPeerChat:
 		fullChat, err := ctx.app.MessagesGetFullChat(chatPeer.ChatID)
 		if err != nil {
 			return nil, err
 		}
-		retrievedCall = fullChat.FullChat.(*tg.ChatFullObj).Call
+		cFull, ok := fullChat.FullChat.(*tg.ChatFullObj)
+		if !ok {
+			return nil, fmt.Errorf("unexpected full chat type %T", fullChat.FullChat)
+		}
+		retrievedCall = cFull.Call
 	default:
 		return nil, fmt.Errorf("chatId %d is not a group call", chatId)
 	}
@@ -69,7 +77,10 @@ func (ctx *Context) getP2PConfigs(GAorB []byte) (*P2PConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	dhConfig := dhConfigRaw.(*tg.MessagesDhConfigObj)
+	dhConfig, ok := dhConfigRaw.(*tg.MessagesDhConfigObj)
+	if !ok {
+		return nil, fmt.Errorf("unexpected dh config type %T", dhConfigRaw)
+	}
 	return &P2PConfig{
 		DhConfig:   dhConfig,
 		IsOutgoing: GAorB == nil,

@@ -107,6 +107,8 @@ func IsMaintenanceEnabled() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
 	return state.Maintenance.Enabled, nil
 }
 
@@ -117,5 +119,7 @@ func IsLoggerEnabled() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
 	return state.LoggerEnabled, nil
 }

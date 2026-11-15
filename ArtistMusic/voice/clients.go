@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"os"
 	"runtime/debug"
@@ -176,19 +177,19 @@ func sendErrorReport(c *td.Client, kind string, update td.TlObject, detail any, 
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("<b>Bot %s:</b> %v\n\n", strings.ToUpper(kind), detail))
+	b.WriteString(fmt.Sprintf("<b>Bot %s:</b> %s\n\n", strings.ToUpper(kind), html.EscapeString(fmt.Sprint(detail))))
 
 	if raw != "" {
 		b.WriteString("<pre>")
 		b.WriteString("Raw update:\n")
-		b.WriteString(raw)
+		b.WriteString(html.EscapeString(raw))
 		b.WriteString("</pre>\n\n")
 	}
 
 	if stack != "" {
 		b.WriteString("<pre>")
 		b.WriteString("Stack trace:\n")
-		b.WriteString(stack)
+		b.WriteString(html.EscapeString(stack))
 		b.WriteString("</pre>")
 	}
 
@@ -211,15 +212,21 @@ func sendErrorReportFile(c *td.Client, text string) {
 	if err != nil {
 		return
 	}
-	defer os.Remove(f.Name())
-	defer f.Close()
+	name := f.Name()
 
 	if _, err := f.WriteString(text); err != nil {
+		_ = f.Close()
+		_ = os.Remove(name)
 		return
 	}
+	_ = f.Close()
+
+	// TDLib uploads the file asynchronously, so keep it around for a while
+	// instead of deleting it as soon as the send call returns.
+	time.AfterFunc(5*time.Minute, func() { _ = os.Remove(name) })
 
 	_, _ = c.SendMessage(config.LoggerID, &td.InputMessageDocument{
-		Document: &td.InputDocument{Document: &td.InputFileLocal{Path: f.Name()}},
+		Document: &td.InputDocument{Document: &td.InputFileLocal{Path: name}},
 	}, nil)
 }
 
@@ -334,6 +341,21 @@ func decodePyrogramSessionString(
 	packedData, err := base64.URLEncoding.DecodeString(encodedString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 string: %w", err)
+	}
+
+	// Pyrogram v1 sessions (">B?256sI?", 263 bytes) carry no api_id and use a
+	// 32-bit user id, so the configured API_ID is used for them.
+	const legacySize = dcIDSize + testModeSize + authKeySize + 4 + isBotSize
+	if len(packedData) == legacySize {
+		return &telegram.Session{
+			Hostname: telegram.ResolveDC(
+				int(packedData[0]),
+				packedData[1] != 0,
+				false,
+			),
+			AppID: config.APIID,
+			Key:   packedData[2 : 2+authKeySize],
+		}, nil
 	}
 
 	expectedSize := dcIDSize + apiIDSize + testModeSize + authKeySize + userIDSize + isBotSize

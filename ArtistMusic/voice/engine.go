@@ -18,7 +18,7 @@ func (ctx *Context) connectCall(
 	jsonParams string,
 ) error {
 	ctx.waitConnectMutex.Lock()
-	waitChan := make(chan error)
+	waitChan := make(chan error, 1)
 	ctx.waitConnect[chatId] = waitChan
 	ctx.waitConnectMutex.Unlock()
 
@@ -166,7 +166,11 @@ func (ctx *Context) connectCall(
 				return err
 			}
 			ctx.p2pConfigsMutex.Lock()
-			p2pConfig.PhoneCall = confirmRes.PhoneCall.(*tg.PhoneCallObj)
+			confirmedCall, ok := confirmRes.PhoneCall.(*tg.PhoneCallObj)
+			if !ok {
+				return fmt.Errorf("unexpected phone call type %T", confirmRes.PhoneCall)
+			}
+			p2pConfig.PhoneCall = confirmedCall
 			ctx.p2pConfigsMutex.Unlock()
 		}
 
@@ -225,7 +229,11 @@ func (ctx *Context) connectCall(
 			return err
 		}
 
-		callRes := callResRaw.(*tg.UpdatesObj)
+		callRes, ok := callResRaw.(*tg.UpdatesObj)
+		if !ok {
+			ctx.binding.Stop(chatId)
+			return fmt.Errorf("unexpected join response type %T", callResRaw)
+		}
 		for _, u := range callRes.Updates {
 			switch update := u.(type) {
 			case *tg.UpdateGroupCallConnection:
@@ -235,6 +243,7 @@ func (ctx *Context) connectCall(
 
 		err = ctx.binding.Connect(chatId, resultParams, false)
 		if err != nil {
+			ctx.binding.Stop(chatId)
 			return err
 		}
 
@@ -402,9 +411,11 @@ func (ctx *Context) handleUpdates() {
 		&tg.UpdateGroupCallParticipants{},
 		func(m tg.Update, c *tg.Client) error {
 			participantsUpdate := m.(*tg.UpdateGroupCallParticipants)
-			chatId, err := ctx.convertGroupCallId(
-				participantsUpdate.Call.(*tg.InputGroupCallObj).ID,
-			)
+			groupCallObj, ok := participantsUpdate.Call.(*tg.InputGroupCallObj)
+			if !ok {
+				return nil
+			}
+			chatId, err := ctx.convertGroupCallId(groupCallObj.ID)
 			if err != nil {
 				return nil
 			}
@@ -670,9 +681,11 @@ func (ctx *Context) handleUpdates() {
 					if secondsWait == 0 {
 						status = artistcalls.SegmentStatusResyncNeeded
 					}
-				} else {
-					data = file.(*tg.UploadFileObj).Bytes
+				} else if uf, ok := file.(*tg.UploadFileObj); ok {
+					data = uf.Bytes
 					status = artistcalls.SegmentStatusSuccess
+				} else {
+					status = artistcalls.SegmentStatusResyncNeeded
 				}
 
 				_ = ctx.binding.SendBroadcastPart(
@@ -702,13 +715,21 @@ func (ctx *Context) handleUpdates() {
 			ctx.waitConnectMutex.RUnlock()
 
 			if waitChan != nil {
+				// Non-blocking: this runs on a native ntgcalls callback thread and
+				// must never wait for a joiner that already timed out.
+				notify := func(err error) {
+					select {
+					case waitChan <- err:
+					default:
+					}
+				}
 				switch state.State {
 				case artistcalls.Connected:
-					waitChan <- nil
+					notify(nil)
 				case artistcalls.Closed, artistcalls.Failed:
-					waitChan <- ErrConnectionFailed
+					notify(ErrConnectionFailed)
 				case artistcalls.Timeout:
-					waitChan <- ErrConnectionTimeout
+					notify(ErrConnectionTimeout)
 				default:
 				}
 			}
@@ -792,7 +813,7 @@ func (ctx *Context) joinPresentation(chatId int64, join bool) error {
 		}
 
 		ctx.waitConnectMutex.Lock()
-		waitChan := make(chan error)
+		waitChan := make(chan error, 1)
 		ctx.waitConnect[chatId] = waitChan
 		ctx.waitConnectMutex.Unlock()
 
@@ -816,7 +837,10 @@ func (ctx *Context) joinPresentation(chatId int64, join bool) error {
 			return err
 		}
 
-		callRes := callResRaw.(*tg.UpdatesObj)
+		callRes, ok := callResRaw.(*tg.UpdatesObj)
+		if !ok {
+			return fmt.Errorf("unexpected presentation response type %T", callResRaw)
+		}
 		for _, u := range callRes.Updates {
 			switch update := u.(type) {
 			case *tg.UpdateGroupCallConnection:

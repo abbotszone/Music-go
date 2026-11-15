@@ -19,6 +19,8 @@ package store
 
 import (
 	"fmt"
+	"slices"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -41,7 +43,9 @@ func Sudoers() ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return state.Sudoers, nil
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
+	return slices.Clone(state.Sudoers), nil
 }
 
 func IsSudo(id int64) (bool, error) {
@@ -49,6 +53,8 @@ func IsSudo(id int64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
 	return contains(state.Sudoers, id), nil
 }
 
@@ -79,6 +85,11 @@ type BotState struct {
 }
 
 const botStateCacheKey = "bot_state"
+
+// botStateMu guards the cached *BotState. It is shared by every handler, so
+// unsynchronised appends and map writes used to race (and Go aborts the whole
+// process on a concurrent map write).
+var botStateMu sync.RWMutex
 
 func newDefaultBotState() *BotState {
 	s := &BotState{
@@ -146,6 +157,9 @@ func updateBotState(newState *BotState) error {
 }
 
 func modifyBotState(fn func(*BotState) bool) error {
+	botStateMu.Lock()
+	defer botStateMu.Unlock()
+
 	state, err := getBotState()
 	if err != nil {
 		return err
@@ -177,7 +191,9 @@ func ServedChats() ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return state.Served.Chats, nil
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
+	return slices.Clone(state.Served.Chats), nil
 }
 
 func ServedUsers() ([]int64, error) {
@@ -185,28 +201,30 @@ func ServedUsers() ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return state.Served.Users, nil
+	botStateMu.RLock()
+	defer botStateMu.RUnlock()
+	return slices.Clone(state.Served.Users), nil
 }
 
 func AddServedChat(id int64) error {
 	return modifyBotState(func(s *BotState) bool {
-		var added bool
-		s.Served.Chats, added = addUnique(s.Served.Chats, id)
-		if added {
-			s.servedChatsMap[id] = struct{}{}
+		if _, exists := s.servedChatsMap[id]; exists {
+			return false
 		}
-		return added
+		s.Served.Chats = append(s.Served.Chats, id)
+		s.servedChatsMap[id] = struct{}{}
+		return true
 	})
 }
 
 func AddServedUser(id int64) error {
 	return modifyBotState(func(s *BotState) bool {
-		var added bool
-		s.Served.Users, added = addUnique(s.Served.Users, id)
-		if added {
-			s.servedUsersMap[id] = struct{}{}
+		if _, exists := s.servedUsersMap[id]; exists {
+			return false
 		}
-		return added
+		s.Served.Users = append(s.Served.Users, id)
+		s.servedUsersMap[id] = struct{}{}
+		return true
 	})
 }
 

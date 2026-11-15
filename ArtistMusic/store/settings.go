@@ -105,7 +105,14 @@ func updateChatSettings(settings *ChatSettings) error {
 	return nil
 }
 
+// chatSettingsWriteMu serialises read-modify-write cycles so two handlers
+// changing the same chat (e.g. adding auth users) cannot lose each other's edit.
+var chatSettingsWriteMu sync.Mutex
+
 func modifyChatSettings(chatID int64, fn func(*ChatSettings) bool) error {
+	chatSettingsWriteMu.Lock()
+	defer chatSettingsWriteMu.Unlock()
+
 	settings, err := getChatSettings(chatID)
 	if err != nil {
 		return err

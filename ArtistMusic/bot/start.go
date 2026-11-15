@@ -632,10 +632,13 @@ func executeRestart(
 
 	for roomChatID := range queue.AllRooms() {
 		queue.DropRoom(roomChatID)
+		// One chat that cannot be messaged (bot kicked, chat deleted, ...)
+		// must not abort the restart halfway.
 		if _, err := c.SendTextMessage(roomChatID, F(roomChatID, "restart_service", locales.Arg{
 			"bot": mentionOf(c.Me, c.Me.Id),
 		}), nil); err != nil {
-			return err
+			logger.Warnf("restart: notice to chat %d failed: %v", roomChatID, err)
+			continue
 		}
 		time.Sleep(time.Second)
 	}

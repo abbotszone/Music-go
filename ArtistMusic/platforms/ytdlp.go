@@ -166,7 +166,6 @@ func (y *YtdlpPlatform) Download(
 		"--geo-bypass",
 		"--no-warnings",
 		"--ignore-errors",
-		"--no-check-certificate",
 		"-q",
 		"-o", getPathIn(slotDir(ctx), track, ".%(ext)s"),
 	}
@@ -228,7 +227,7 @@ func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
 
 	args := []string{
 		"-j", "--flat-playlist",
-		"--no-warnings", "--no-check-certificate",
+		"--no-warnings",
 	}
 
 	if y.isYouTubeURL(urlStr) {
@@ -303,9 +302,9 @@ func (y *YtdlpPlatform) isYouTubeURL(urlStr string) bool {
 const cookieDir = "config/cookies"
 
 var (
-	cachedFiles []string
-	cacheOnce   sync.Once
-	cookieClient      = resty.New().SetTimeout(30 * time.Second)
+	cachedFiles  []string
+	cacheOnce    sync.Once
+	cookieClient = resty.New().SetTimeout(30 * time.Second)
 )
 
 func init() {
@@ -326,18 +325,26 @@ func init() {
 }
 
 func downloadCookieFile(url string) error {
-	id := filepath.Base(url)
+	id := filepath.Base(strings.TrimRight(url, "/"))
 	rawURL := "https://batbin.me/raw/" + id
+	// Only batbin.me paste links need the /raw/ rewrite; any other direct
+	// link to a cookies file is fetched as given.
+	if !strings.Contains(url, "batbin.me") && strings.HasPrefix(url, "http") {
+		rawURL = url
+	}
 	filePath := filepath.Join(cookieDir, id+".txt")
 
 	resp, err := cookieClient.R().
 		SetResponseSaveFileName(filePath).
 		Get(rawURL)
 	if err != nil {
+		_ = os.Remove(filePath)
 		return err
 	}
 
 	if resp.IsStatusFailure() {
+		// Do not leave an error page behind as a "cookie file".
+		_ = os.Remove(filePath)
 		return fmt.Errorf(
 			"unexpected status %d from %s",
 			resp.StatusCode(),

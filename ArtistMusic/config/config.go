@@ -43,7 +43,7 @@ var (
 	DBName        = "ArtistMusic"
 	SessionType   = getEnv("SESSION_TYPE", "pyrogram")
 	LoggerID      = getEnvInt64("LOGGER_ID", 0)
-	OwnerID       = getEnvInt64("OWNER_ID", 8801522842)
+	OwnerID       = getEnvInt64("OWNER_ID", 0)
 	DevURL        = getEnv("DEV_URL", getEnv("DEVELOPER_URL", ""))
 	DisableColour = getEnvBool("DISABLE_COLOUR", false)
 
@@ -120,6 +120,7 @@ func validateConfig() error {
 		msg string
 	}{
 		{APIID != 0, "API_ID is required"},
+		{OwnerID != 0, "OWNER_ID is required (your Telegram user ID)"},
 		{APIHash != "", "API_HASH is required"},
 		{Token != "", "TOKEN (or BOT_TOKEN) is required"},
 		{MongoURI != "", "MONGO_DB_URI is required"},

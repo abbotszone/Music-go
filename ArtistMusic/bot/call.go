@@ -154,7 +154,7 @@ func streamEndHandler(
 		filePath = r.FilePath()
 	} else {
 		const maxRetries = 5
-		const downloadTimeout = 60 * time.Second
+		const downloadTimeout = 5 * time.Minute
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			dlCtx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 			filePath, dlErr = platforms.Download(dlCtx, t, statusMsg)
@@ -171,7 +171,14 @@ func streamEndHandler(
 				nextT.Requester = "♪ ᴀᴜᴛᴏᴘʟᴀʏ"
 				t = nextT
 			} else {
-				break
+				// A track that cannot be downloaded must not kill the whole
+				// queue: move on to the next queued track, if any.
+				logger.Warnf("[onStreamEndHandler] Download failed (attempt %d/%d) for %q: %v — trying next queued track", attempt+1, maxRetries, t.Title, dlErr)
+				nextT := r.NextTrack()
+				if nextT == nil || nextT == t {
+					break
+				}
+				t = nextT
 			}
 		}
 	}

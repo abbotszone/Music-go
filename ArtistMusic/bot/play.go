@@ -48,6 +48,11 @@ type playOpts struct {
 
 const playMaxRetries = 3
 
+// errPlayAborted means the play attempt was stopped on purpose and the user
+// has already been told why (or the room is gone), so nothing more must be
+// sent or retried.
+var errPlayAborted = errors.New("play aborted")
+
 func init() {
 	helpTexts["/play"] = `<i>Play a song in the voice chat from YouTube, Spotify, or other sources.</i>
 
@@ -242,11 +247,12 @@ func preparePlayRequest(c *td.Client, m *td.Message, cplay bool) (*queue.RoomSta
 }
 
 func extractPlayQuery(text string) string {
-	parts := strings.SplitN(text, " ", 2)
-	if len(parts) < 2 {
+	text = strings.TrimSpace(text)
+	idx := strings.IndexAny(text, " \t\r\n")
+	if idx < 0 {
 		return ""
 	}
-	return strings.TrimSpace(parts[1])
+	return strings.TrimSpace(text[idx+1:])
 }
 
 func fetchTracksAndCheckStatus(
@@ -299,7 +305,7 @@ func rejectDuplicate(
 
 func isTrackInQueue(r *queue.RoomState, t *state.Track) bool {
 	for _, qt := range r.Queue() {
-		if qt.URL == t.URL || qt.ID == t.ID {
+		if (t.URL != "" && qt.URL == t.URL) || (t.ID != "" && qt.ID == t.ID) {
 			return true
 		}
 	}
@@ -465,6 +471,9 @@ func playTracksAndRespond(
 		}
 
 		if err := playTrackWithRetry(r, track, filePath, force && i == 0, c, replyMsg); err != nil {
+			if errors.Is(err, errPlayAborted) {
+				return nil
+			}
 			return err
 		}
 
@@ -548,7 +557,7 @@ func finalizePlayReply(
 			r.SetStatusMsg(replyMsg)
 		}
 
-		if len(tracks) > 1 {
+		if len(tracks) > 1 && replyMsg != nil {
 			replyMsg.ReplyText(
 				c,
 				buildMultiAddedText(
@@ -640,7 +649,7 @@ func playTrackWithRetry(
 		if r.Destroyed() {
 			logger.Info("Room destroyed during retry, aborting")
 			replyMsg.Delete(c, true)
-			return nil
+			return errPlayAborted
 		}
 
 		err := r.Play(track, filePath, force)
@@ -709,28 +718,28 @@ func handlePlayAttemptError(
 		logger.Error("Voice connection timeout. Stopping call session...")
 		utils.EOR(c, replyMsg, F(replyMsg.ChatID(), "err_connection_timeout"), nil)
 		queue.DropRoom(room.ID)
-		return true, nil
+		return true, errPlayAborted
 	}
 
 	if strings.Contains(err.Error(), "Streaming is not supported when using RTMP") {
 		logger.Error("RTMP/live-stream voice chat detected, cannot play. Cleaning up...")
 		queue.DropRoom(room.ID)
 		utils.EOR(c, replyMsg, F(replyMsg.ChatID(), "rtmp_play_unsupported"), nil)
-		return true, nil
+		return true, errPlayAborted
 	}
 
 	if strings.Contains(err.Error(), "group call") &&
 		strings.Contains(err.Error(), "is closed") {
 		markVoiceChatInactive(room.ID)
 		utils.EOR(c, replyMsg, F(replyMsg.ChatID(), "err_no_active_voicechat"), nil)
-		return true, nil
+		return true, errPlayAborted
 	}
 
 	if strings.Contains(err.Error(), "GROUPCALL_INVALID") {
 		logger.Error("GROUPCALL_INVALID err occurred. Returning...")
 		queue.DropRoom(room.ID)
 		utils.EOR(c, replyMsg, F(replyMsg.ChatID(), "play_unable"), nil)
-		return true, nil
+		return true, errPlayAborted
 	}
 
 	if strings.Contains(err.Error(), "INTERDC_X_CALL_ERROR") {
@@ -769,7 +778,11 @@ func getFloodWait(err error) int {
 
 	msg := err.Error()
 	if _, after, ok := strings.Cut(msg, "FLOOD_WAIT_"); ok {
-		if wait, cerr := strconv.Atoi(after); cerr == nil {
+		end := 0
+		for end < len(after) && after[end] >= '0' && after[end] <= '9' {
+			end++
+		}
+		if wait, cerr := strconv.Atoi(after[:end]); cerr == nil {
 			return wait
 		}
 	}

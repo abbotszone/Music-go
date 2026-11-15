@@ -1050,8 +1050,33 @@ func (r *RoomState) Unmute() (bool, error) {
 }
 
 func (r *RoomState) play() error {
-	desc := getMediaDescription(r.filePath, r.position, r.speed, r.track.Video)
-	return r.Assistant.Ntg.Play(r.ID, desc)
+	// Snapshot under the lock: Stop/DropRoom can clear the track at any time.
+	r.mu.RLock()
+	track, path, pos, speed, ass := r.track, r.filePath, r.position, r.speed, r.Assistant
+	r.mu.RUnlock()
+
+	if track == nil || ass == nil {
+		return errors.New("no track to play")
+	}
+
+	desc := getMediaDescription(path, pos, speed, track.Video)
+	return ass.Ntg.Play(r.ID, desc)
+}
+
+// shellQuoteArg escapes a value placed inside double quotes of the ffmpeg
+// shell command, so a crafted URL or file name cannot expand environment
+// variables ($TOKEN, $MONGO_DB_URI, ...) or run extra commands.
+func shellQuoteArg(s string) string {
+	s = strings.NewReplacer("\n", "", "\r", "").Replace(s)
+	if runtime.GOOS == "windows" {
+		return strings.ReplaceAll(s, "\"", "")
+	}
+	return strings.NewReplacer(
+		"\\", "\\\\",
+		"\"", "\\\"",
+		"$", "\\$",
+		"`", "\\`",
+	).Replace(s)
 }
 
 func getMediaDescription(
@@ -1073,7 +1098,7 @@ func getMediaDescription(
 	if pos > 0 {
 		baseCmd += "-ss " + strconv.Itoa(pos) + " "
 	}
-	baseCmd += "-v warning -i \"" + url + "\" "
+	baseCmd += "-v warning -i \"" + shellQuoteArg(url) + "\" "
 
 	audio := getAudioPipeline(baseCmd, speed)
 	if !isVideo {
