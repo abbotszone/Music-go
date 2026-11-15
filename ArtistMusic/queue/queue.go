@@ -19,7 +19,7 @@ package queue
 import (
 	"sync"
 
-	"github.com/elevenyts/ArtistMusic/models"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
 )
 
 // Chat holds everything the bot remembers about one group's playback.
@@ -32,6 +32,7 @@ type Chat struct {
 	NoThumb  bool
 	Position int // seconds, updated by the player ticker
 	MsgID    int32
+	Loaded   bool // settings already read from MongoDB
 }
 
 var (

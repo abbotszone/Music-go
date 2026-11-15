@@ -28,8 +28,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/elevenyts/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/models"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
 )
 
 // ArtistbotsAPI downloads YouTube tracks through

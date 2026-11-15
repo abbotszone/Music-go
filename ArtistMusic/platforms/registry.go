@@ -27,7 +27,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/elevenyts/ArtistMusic/models"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
 )
 
 var (

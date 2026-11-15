@@ -24,9 +24,9 @@ import (
 
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"github.com/elevenyts/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/queue"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/queue"
 )
 
 func (b *Bot) register() {
@@ -51,7 +51,7 @@ func (b *Bot) register() {
 		if err != nil || n < 0 || n > 10 {
 			return "Usage: /loop [0-10]  (0 = off)"
 		}
-		queue.Get(id).Loop = n
+		b.chat(id).Loop = n
 		return fmt.Sprintf("🔁 Loop set to %d.", n)
 	}))
 	c.On("cmd:seek", b.adminCmd(func(id int64, m *tg.NewMessage) string { return b.seekBy(id, argsOf(m), 1) }))
@@ -60,7 +60,7 @@ func (b *Bot) register() {
 
 	c.On("cmd:autoplay", b.adminCmd(func(id int64, m *tg.NewMessage) string { return b.toggleAutoplay(id) }))
 	c.On("cmd:nothumb", b.adminCmd(func(id int64, m *tg.NewMessage) string {
-		ch := queue.Get(id)
+		ch := b.chat(id)
 		ch.NoThumb = !ch.NoThumb
 		b.db.SetNoThumb(id, ch.NoThumb)
 		if ch.NoThumb {
@@ -112,7 +112,7 @@ func (b *Bot) do(err error, ok string) string {
 
 func (b *Bot) stop(chatID int64) {
 	_ = b.eng.Stop(chatID)
-	queue.Get(chatID).Clear()
+	b.chat(chatID).Clear()
 }
 
 func (b *Bot) seekBy(chatID int64, arg string, dir int) string {
@@ -128,7 +128,7 @@ func (b *Bot) seekBy(chatID int64, arg string, dir int) string {
 }
 
 func (b *Bot) toggleAutoplay(chatID int64) string {
-	ch := queue.Get(chatID)
+	ch := b.chat(chatID)
 	ch.Autoplay = !ch.Autoplay
 	b.db.SetAutoplay(chatID, ch.Autoplay)
 	if ch.Autoplay {
@@ -166,7 +166,7 @@ func (b *Bot) cmdPing(m *tg.NewMessage) error {
 }
 
 func (b *Bot) cmdQueue(m *tg.NewMessage) error {
-	ch := queue.Get(m.ChatID())
+	ch := b.chat(m.ChatID())
 	var sb strings.Builder
 	if ch.Current != nil {
 		sb.WriteString("▶ <b>Now:</b> " + esc(trunc(ch.Current.Title, 45)) + "\n\n")
@@ -218,7 +218,7 @@ func (b *Bot) cmdPlay(m *tg.NewMessage, video, force bool) error {
 		t.Requester = who
 	}
 
-	ch := queue.Get(chatID)
+	ch := b.chat(chatID)
 	idle := ch.Current == nil
 	if !idle && !force {
 		n := ch.Add(config.C.QueueLimit, tracks...)

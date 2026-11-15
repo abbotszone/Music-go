@@ -24,12 +24,12 @@ import (
 
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"github.com/elevenyts/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/models"
-	"github.com/elevenyts/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/queue"
-	"github.com/elevenyts/ArtistMusic/store"
-	"github.com/elevenyts/ArtistMusic/voice"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/queue"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/store"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/voice"
 )
 
 type Bot struct {
@@ -59,6 +59,16 @@ func New(db *store.Store, eng voice.Engine) (*Bot, error) {
 
 func (b *Bot) Idle() { b.c.Idle() }
 
+// chat returns the chat state, loading autoplay / nothumb from MongoDB the first time.
+func (b *Bot) chat(chatID int64) *queue.Chat {
+	ch := queue.Get(chatID)
+	if !ch.Loaded {
+		ch.Autoplay, ch.NoThumb = b.db.Settings(chatID)
+		ch.Loaded = true
+	}
+	return ch
+}
+
 // ───────────── playback core ─────────────
 
 func (b *Bot) startTrack(chatID int64, t *models.Track) error {
@@ -71,7 +81,7 @@ func (b *Bot) startTrack(chatID int64, t *models.Track) error {
 	if err := b.eng.Play(chatID, file, t.Video); err != nil {
 		return err
 	}
-	ch := queue.Get(chatID)
+	ch := b.chat(chatID)
 	ch.Current = t
 	b.nowPlaying(chatID, t)
 	return nil
@@ -79,7 +89,7 @@ func (b *Bot) startTrack(chatID int64, t *models.Track) error {
 
 // onEnded runs when a stream finishes: loop → queue → autoplay → stop.
 func (b *Bot) onEnded(chatID int64) {
-	ch := queue.Get(chatID)
+	ch := b.chat(chatID)
 	prev := ch.Current
 	for {
 		next := ch.Next()
@@ -107,7 +117,7 @@ func (b *Bot) onEnded(chatID int64) {
 }
 
 func (b *Bot) nowPlaying(chatID int64, t *models.Track) {
-	ch := queue.Get(chatID)
+	ch := b.chat(chatID)
 	ap := "off"
 	if ch.Autoplay {
 		ap = "on"
@@ -118,7 +128,12 @@ func (b *Bot) nowPlaying(chatID int64, t *models.Track) {
 	}
 	text := fmt.Sprintf("➲ <b>NOW STREAMING</b>\n\n🎧 <a href=\"%s\">%s</a>\n⏱ %s | 👤 %s\n\n❤️ POWERED BY ARTIST",
 		t.URL, esc(trunc(t.Title, 40)), dur(t.Duration), esc(who))
-	b.send(chatID, text, controls(ap)...)
+	if !ch.NoThumb && t.Artwork != "" {
+		if b.sendPhoto(chatID, t.Artwork, text, controls(ap)...) {
+			return
+		}
+	}
+	b.send(chatID, text, controls(ap)...) // /nothumb on, or photo failed
 }
 
 func controls(ap string) [][]button {

@@ -20,11 +20,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/elevenyts/ArtistMusic/bot"
-	"github.com/elevenyts/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/store"
-	"github.com/elevenyts/ArtistMusic/voice"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/bot"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/store"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/voice"
 )
 
 func main() {

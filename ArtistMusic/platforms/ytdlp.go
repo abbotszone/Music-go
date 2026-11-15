@@ -32,8 +32,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elevenyts/ArtistMusic/config"
-	"github.com/elevenyts/ArtistMusic/models"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/models"
 )
 
 const (
@@ -100,10 +100,8 @@ func parseInfos(out []byte, video bool) []*models.Track {
 		if config.C.DurationLimit > 0 && int(i.Duration) > config.C.DurationLimit {
 			continue
 		}
-		art := i.Thumbnail
-		if art == "" && len(i.Thumbs) > 0 {
-			art = i.Thumbs[len(i.Thumbs)-1].URL
-		}
+		// hqdefault.jpg exists for every video (yt-dlp may return webp, which Telegram rejects).
+		art := "https://i.ytimg.com/vi/" + i.ID + "/hqdefault.jpg"
 		tracks = append(tracks, &models.Track{
 			ID: i.ID, Title: i.Title, Artwork: art, Duration: int(i.Duration),
 			URL: "https://www.youtube.com/watch?v=" + i.ID, Source: PlatformYouTube, Video: video,

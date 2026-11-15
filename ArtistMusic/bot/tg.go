@@ -24,7 +24,7 @@ import (
 
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"github.com/elevenyts/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
 )
 
 type button struct{ Text, Data, URL string }
@@ -91,3 +91,12 @@ func (b *Bot) copyTo(target int64, src *tg.NewMessage, hideAuthor bool) error {
 func isGroup(id int64) bool { return id < 0 }
 
 func argsOf(m *tg.NewMessage) string { return strings.TrimSpace(m.Args()) }
+
+// sendPhoto sends the track artwork with the Now Streaming caption and buttons.
+func (b *Bot) sendPhoto(chatID int64, photoURL, caption string, rows ...[]button) bool {
+	_, err := b.c.SendMedia(chatID, photoURL, &tg.MediaOptions{
+		Caption:     caption,
+		ReplyMarkup: keyboard(rows...),
+	})
+	return err == nil
+}

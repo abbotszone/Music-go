@@ -44,4 +44,4 @@ Zaroori: `yt-dlp` aur `ffmpeg` PATH me.
 1. `voice/engine.go` me abhi `LogEngine` hai (sirf log karta hai). Asli audio ke liye `voice.Engine` ka ntgcalls wala implementation likh ke `main.go` me `LogEngine` ki jagah lagao. `STRING_SESSIONS` wala userbot call join karega.
 2. Code yahan compile nahi kiya ja saka (Go toolchain / internet nahi tha). gogram ke saare calls `bot/tg.go` me hain, version mismatch ho to sirf wahi file theek karni padegi.
 3. `-pin / -pinloud` flags parse hote hain par pin karna abhi implement nahi hai.
-4. Thumbnail (`/nothumb`) ka flag save hota hai, par now-playing card abhi sirf text bhejta hai (artwork bhejna baaki).
+4. Thumbnail: ab now-playing card me YouTube thumbnail photo ke saath jaata hai; /nothumb se text-only ho jaata hai.

@@ -25,7 +25,7 @@ import (
 
 	tg "github.com/amarnathcjd/gogram/telegram"
 
-	"github.com/elevenyts/ArtistMusic/config"
+	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
 )
 
 type bcOpts struct {

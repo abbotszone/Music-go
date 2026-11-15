@@ -14,7 +14,7 @@
 # of this source code without permission is prohibited.
 # ==========================================================
 
-FROM golang:1.22-bookworm AS build
+FROM golang:1.25-bookworm AS build
 WORKDIR /src
 COPY . .
 RUN go mod tidy && CGO_ENABLED=0 go build -o /artistmusic .
