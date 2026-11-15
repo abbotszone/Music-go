@@ -35,8 +35,8 @@ func UnmarshalActiveStoryState(data []byte) (ActiveStoryState, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownActiveStoryState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -67,8 +67,8 @@ func UnmarshalAuthenticationCodeType(data []byte) (AuthenticationCodeType, error
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownAuthenticationCodeType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -157,8 +157,8 @@ func UnmarshalAuthorizationState(data []byte) (AuthorizationState, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownAuthorizationState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -182,8 +182,8 @@ func UnmarshalBackgroundFill(data []byte) (BackgroundFill, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownBackgroundFill{Type: typeObj.Type}, nil
 	}
 }
 
@@ -208,8 +208,8 @@ func UnmarshalBackgroundType(data []byte) (BackgroundType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownBackgroundType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -232,8 +232,8 @@ func UnmarshalBlockList(data []byte) (BlockList, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownBlockList{Type: typeObj.Type}, nil
 	}
 }
 
@@ -277,8 +277,8 @@ func UnmarshalButtonStyle(data []byte) (ButtonStyle, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownButtonStyle{Type: typeObj.Type}, nil
 	}
 }
 
@@ -319,8 +319,8 @@ func UnmarshalCallbackQueryPayload(data []byte) (CallbackQueryPayload, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownCallbackQueryPayload{Type: typeObj.Type}, nil
 	}
 }
 
@@ -347,8 +347,8 @@ func UnmarshalCallState(data []byte) (CallState, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownCallState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -404,8 +404,8 @@ func UnmarshalChatActionBar(data []byte) (ChatActionBar, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatActionBar{Type: typeObj.Type}, nil
 	}
 }
 
@@ -428,8 +428,8 @@ func UnmarshalChatAvailableReactions(data []byte) (ChatAvailableReactions, error
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatAvailableReactions{Type: typeObj.Type}, nil
 	}
 }
 
@@ -463,8 +463,8 @@ func UnmarshalChatList(data []byte) (ChatList, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatList{Type: typeObj.Type}, nil
 	}
 }
 
@@ -526,8 +526,8 @@ func UnmarshalChatMemberStatus(data []byte) (ChatMemberStatus, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatMemberStatus{Type: typeObj.Type}, nil
 	}
 }
 
@@ -550,8 +550,8 @@ func UnmarshalChatPhotoStickerType(data []byte) (ChatPhotoStickerType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatPhotoStickerType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -574,8 +574,8 @@ func UnmarshalChatSource(data []byte) (ChatSource, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatSource{Type: typeObj.Type}, nil
 	}
 }
 
@@ -598,8 +598,8 @@ func UnmarshalChatTheme(data []byte) (ChatTheme, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatTheme{Type: typeObj.Type}, nil
 	}
 }
 
@@ -642,8 +642,8 @@ func UnmarshalChatType(data []byte) (ChatType, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownChatType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -669,8 +669,8 @@ func UnmarshalConnectionState(data []byte) (ConnectionState, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownConnectionState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -704,8 +704,8 @@ func UnmarshalDateTimeFormattingType(data []byte) (DateTimeFormattingType, error
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownDateTimeFormattingType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -741,8 +741,8 @@ func UnmarshalDateTimePartPrecision(data []byte) (DateTimePartPrecision, error) 
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownDateTimePartPrecision{Type: typeObj.Type}, nil
 	}
 }
 
@@ -768,8 +768,8 @@ func UnmarshalDraftMessageContent(data []byte) (DraftMessageContent, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownDraftMessageContent{Type: typeObj.Type}, nil
 	}
 }
 
@@ -792,8 +792,8 @@ func UnmarshalEmojiStatusType(data []byte) (EmojiStatusType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownEmojiStatusType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -847,8 +847,8 @@ func UnmarshalFirebaseAuthenticationSettings(data []byte) (FirebaseAuthenticatio
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownFirebaseAuthenticationSettings{Type: typeObj.Type}, nil
 	}
 }
 
@@ -894,8 +894,8 @@ func UnmarshalInlineKeyboardButtonType(data []byte) (InlineKeyboardButtonType, e
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInlineKeyboardButtonType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -932,8 +932,8 @@ func UnmarshalInputFile(data []byte) (InputFile, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInputFile{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1002,8 +1002,8 @@ func UnmarshalInputMessageReplyTo(data []byte) (InputMessageReplyTo, error) {
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInputMessageReplyTo{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1026,8 +1026,8 @@ func UnmarshalInputPaidMediaType(data []byte) (InputPaidMediaType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInputPaidMediaType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1057,8 +1057,8 @@ func UnmarshalInputPollMedia(data []byte) (InputPollMedia, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInputPollMedia{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1081,8 +1081,8 @@ func UnmarshalInputPollType(data []byte) (InputPollType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownInputPollType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1143,8 +1143,8 @@ func UnmarshalLinkPreviewType(data []byte) (LinkPreviewType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownLinkPreviewType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1359,8 +1359,8 @@ func UnmarshalMessageContent(data []byte) (MessageContent, error) {
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageContent{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1385,8 +1385,8 @@ func UnmarshalMessageOrigin(data []byte) (MessageOrigin, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageOrigin{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1415,8 +1415,8 @@ func UnmarshalMessageReplyTo(data []byte) (MessageReplyTo, error) {
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageReplyTo{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1440,8 +1440,8 @@ func UnmarshalMessageSchedulingState(data []byte) (MessageSchedulingState, error
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageSchedulingState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1464,8 +1464,8 @@ func UnmarshalMessageSelfDestructType(data []byte) (MessageSelfDestructType, err
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageSelfDestructType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1499,8 +1499,8 @@ func UnmarshalMessageSender(data []byte) (MessageSender, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageSender{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1529,8 +1529,8 @@ func UnmarshalMessageSendingState(data []byte) (MessageSendingState, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageSendingState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1555,8 +1555,8 @@ func UnmarshalMessageTopic(data []byte) (MessageTopic, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownMessageTopic{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1605,8 +1605,8 @@ func UnmarshalProfileTab(data []byte) (ProfileTab, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownProfileTab{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1630,8 +1630,8 @@ func UnmarshalReactionType(data []byte) (ReactionType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownReactionType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1655,8 +1655,8 @@ func UnmarshalReactionUnavailabilityReason(data []byte) (ReactionUnavailabilityR
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownReactionUnavailabilityReason{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1688,8 +1688,8 @@ func UnmarshalReplyMarkup(data []byte) (ReplyMarkup, error) {
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownReplyMarkup{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1713,8 +1713,8 @@ func UnmarshalRichMessageSource(data []byte) (RichMessageSource, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownRichMessageSource{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1752,8 +1752,8 @@ func UnmarshalSessionDeviceType(data []byte) (SessionDeviceType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownSessionDeviceType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1785,8 +1785,8 @@ func UnmarshalSpeechRecognitionResult(data []byte) (SpeechRecognitionResult, err
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownSpeechRecognitionResult{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1810,8 +1810,8 @@ func UnmarshalStickerFormat(data []byte) (StickerFormat, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownStickerFormat{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1835,8 +1835,8 @@ func UnmarshalStickerFullType(data []byte) (StickerFullType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownStickerFullType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1859,8 +1859,8 @@ func UnmarshalSuggestedPostPrice(data []byte) (SuggestedPostPrice, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownSuggestedPostPrice{Type: typeObj.Type}, nil
 	}
 }
 
@@ -1884,8 +1884,8 @@ func UnmarshalSuggestedPostState(data []byte) (SuggestedPostState, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownSuggestedPostState{Type: typeObj.Type}, nil
 	}
 }
 
@@ -2066,8 +2066,8 @@ func UnmarshalTextEntityType(data []byte) (TextEntityType, error) {
 		}
 		return &obj, nil
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownTextEntityType{Type: typeObj.Type}, nil
 	}
 }
 
@@ -2103,8 +2103,8 @@ func UnmarshalThumbnailFormat(data []byte) (ThumbnailFormat, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownThumbnailFormat{Type: typeObj.Type}, nil
 	}
 }
 
@@ -2431,8 +2431,8 @@ func UnmarshalUpdate(data []byte) (Update, error) {
 		return &obj, nil
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownUpdate{Type: typeObj.Type}, nil
 	}
 }
 
@@ -2459,8 +2459,8 @@ func UnmarshalUserStatus(data []byte) (UserStatus, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownUserStatus{Type: typeObj.Type}, nil
 	}
 }
 
@@ -2485,7 +2485,331 @@ func UnmarshalUserType(data []byte) (UserType, error) {
 	switch typeObj.Type {
 
 	default:
-		// Variant not kept in this trimmed build: leave the field nil instead of failing the whole object.
-		return nil, nil
+		// Variant not kept in this trimmed build: return a placeholder (never nil) so callers can still call GetType().
+		return &unknownUserType{Type: typeObj.Type}, nil
 	}
 }
+
+// unknownActiveStoryState stands in for a ActiveStoryState variant that was trimmed from this build.
+type unknownActiveStoryState struct{ Type string }
+
+func (u *unknownActiveStoryState) GetType() string   { return u.Type }
+func (u *unknownActiveStoryState) activeStoryState() {}
+
+// unknownAuthenticationCodeType stands in for a AuthenticationCodeType variant that was trimmed from this build.
+type unknownAuthenticationCodeType struct{ Type string }
+
+func (u *unknownAuthenticationCodeType) GetType() string         { return u.Type }
+func (u *unknownAuthenticationCodeType) authenticationCodeType() {}
+
+// unknownAuthorizationState stands in for a AuthorizationState variant that was trimmed from this build.
+type unknownAuthorizationState struct{ Type string }
+
+func (u *unknownAuthorizationState) GetType() string     { return u.Type }
+func (u *unknownAuthorizationState) authorizationState() {}
+
+// unknownBackgroundFill stands in for a BackgroundFill variant that was trimmed from this build.
+type unknownBackgroundFill struct{ Type string }
+
+func (u *unknownBackgroundFill) GetType() string { return u.Type }
+func (u *unknownBackgroundFill) backgroundFill() {}
+
+// unknownBackgroundType stands in for a BackgroundType variant that was trimmed from this build.
+type unknownBackgroundType struct{ Type string }
+
+func (u *unknownBackgroundType) GetType() string { return u.Type }
+func (u *unknownBackgroundType) backgroundType() {}
+
+// unknownBlockList stands in for a BlockList variant that was trimmed from this build.
+type unknownBlockList struct{ Type string }
+
+func (u *unknownBlockList) GetType() string { return u.Type }
+func (u *unknownBlockList) blockList()      {}
+
+// unknownButtonStyle stands in for a ButtonStyle variant that was trimmed from this build.
+type unknownButtonStyle struct{ Type string }
+
+func (u *unknownButtonStyle) GetType() string { return u.Type }
+func (u *unknownButtonStyle) buttonStyle()    {}
+
+// unknownCallbackQueryPayload stands in for a CallbackQueryPayload variant that was trimmed from this build.
+type unknownCallbackQueryPayload struct{ Type string }
+
+func (u *unknownCallbackQueryPayload) GetType() string       { return u.Type }
+func (u *unknownCallbackQueryPayload) callbackQueryPayload() {}
+
+// unknownCallState stands in for a CallState variant that was trimmed from this build.
+type unknownCallState struct{ Type string }
+
+func (u *unknownCallState) GetType() string { return u.Type }
+func (u *unknownCallState) callState()      {}
+
+// unknownChatActionBar stands in for a ChatActionBar variant that was trimmed from this build.
+type unknownChatActionBar struct{ Type string }
+
+func (u *unknownChatActionBar) GetType() string { return u.Type }
+func (u *unknownChatActionBar) chatActionBar()  {}
+
+// unknownChatAvailableReactions stands in for a ChatAvailableReactions variant that was trimmed from this build.
+type unknownChatAvailableReactions struct{ Type string }
+
+func (u *unknownChatAvailableReactions) GetType() string         { return u.Type }
+func (u *unknownChatAvailableReactions) chatAvailableReactions() {}
+
+// unknownChatList stands in for a ChatList variant that was trimmed from this build.
+type unknownChatList struct{ Type string }
+
+func (u *unknownChatList) GetType() string { return u.Type }
+func (u *unknownChatList) chatList()       {}
+
+// unknownChatMemberStatus stands in for a ChatMemberStatus variant that was trimmed from this build.
+type unknownChatMemberStatus struct{ Type string }
+
+func (u *unknownChatMemberStatus) GetType() string   { return u.Type }
+func (u *unknownChatMemberStatus) chatMemberStatus() {}
+
+// unknownChatPhotoStickerType stands in for a ChatPhotoStickerType variant that was trimmed from this build.
+type unknownChatPhotoStickerType struct{ Type string }
+
+func (u *unknownChatPhotoStickerType) GetType() string       { return u.Type }
+func (u *unknownChatPhotoStickerType) chatPhotoStickerType() {}
+
+// unknownChatSource stands in for a ChatSource variant that was trimmed from this build.
+type unknownChatSource struct{ Type string }
+
+func (u *unknownChatSource) GetType() string { return u.Type }
+func (u *unknownChatSource) chatSource()     {}
+
+// unknownChatTheme stands in for a ChatTheme variant that was trimmed from this build.
+type unknownChatTheme struct{ Type string }
+
+func (u *unknownChatTheme) GetType() string { return u.Type }
+func (u *unknownChatTheme) chatTheme()      {}
+
+// unknownChatType stands in for a ChatType variant that was trimmed from this build.
+type unknownChatType struct{ Type string }
+
+func (u *unknownChatType) GetType() string { return u.Type }
+func (u *unknownChatType) chatType()       {}
+
+// unknownConnectionState stands in for a ConnectionState variant that was trimmed from this build.
+type unknownConnectionState struct{ Type string }
+
+func (u *unknownConnectionState) GetType() string  { return u.Type }
+func (u *unknownConnectionState) connectionState() {}
+
+// unknownDateTimeFormattingType stands in for a DateTimeFormattingType variant that was trimmed from this build.
+type unknownDateTimeFormattingType struct{ Type string }
+
+func (u *unknownDateTimeFormattingType) GetType() string         { return u.Type }
+func (u *unknownDateTimeFormattingType) dateTimeFormattingType() {}
+
+// unknownDateTimePartPrecision stands in for a DateTimePartPrecision variant that was trimmed from this build.
+type unknownDateTimePartPrecision struct{ Type string }
+
+func (u *unknownDateTimePartPrecision) GetType() string        { return u.Type }
+func (u *unknownDateTimePartPrecision) dateTimePartPrecision() {}
+
+// unknownDraftMessageContent stands in for a DraftMessageContent variant that was trimmed from this build.
+type unknownDraftMessageContent struct{ Type string }
+
+func (u *unknownDraftMessageContent) GetType() string      { return u.Type }
+func (u *unknownDraftMessageContent) draftMessageContent() {}
+
+// unknownEmojiStatusType stands in for a EmojiStatusType variant that was trimmed from this build.
+type unknownEmojiStatusType struct{ Type string }
+
+func (u *unknownEmojiStatusType) GetType() string  { return u.Type }
+func (u *unknownEmojiStatusType) emojiStatusType() {}
+
+// unknownFirebaseAuthenticationSettings stands in for a FirebaseAuthenticationSettings variant that was trimmed from this build.
+type unknownFirebaseAuthenticationSettings struct{ Type string }
+
+func (u *unknownFirebaseAuthenticationSettings) GetType() string                 { return u.Type }
+func (u *unknownFirebaseAuthenticationSettings) firebaseAuthenticationSettings() {}
+
+// unknownInlineKeyboardButtonType stands in for a InlineKeyboardButtonType variant that was trimmed from this build.
+type unknownInlineKeyboardButtonType struct{ Type string }
+
+func (u *unknownInlineKeyboardButtonType) GetType() string           { return u.Type }
+func (u *unknownInlineKeyboardButtonType) inlineKeyboardButtonType() {}
+
+// unknownInputFile stands in for a InputFile variant that was trimmed from this build.
+type unknownInputFile struct{ Type string }
+
+func (u *unknownInputFile) GetType() string { return u.Type }
+func (u *unknownInputFile) inputFile()      {}
+
+// unknownInputMessageReplyTo stands in for a InputMessageReplyTo variant that was trimmed from this build.
+type unknownInputMessageReplyTo struct{ Type string }
+
+func (u *unknownInputMessageReplyTo) GetType() string      { return u.Type }
+func (u *unknownInputMessageReplyTo) inputMessageReplyTo() {}
+
+// unknownInputPaidMediaType stands in for a InputPaidMediaType variant that was trimmed from this build.
+type unknownInputPaidMediaType struct{ Type string }
+
+func (u *unknownInputPaidMediaType) GetType() string     { return u.Type }
+func (u *unknownInputPaidMediaType) inputPaidMediaType() {}
+
+// unknownInputPollMedia stands in for a InputPollMedia variant that was trimmed from this build.
+type unknownInputPollMedia struct{ Type string }
+
+func (u *unknownInputPollMedia) GetType() string { return u.Type }
+func (u *unknownInputPollMedia) inputPollMedia() {}
+
+// unknownInputPollType stands in for a InputPollType variant that was trimmed from this build.
+type unknownInputPollType struct{ Type string }
+
+func (u *unknownInputPollType) GetType() string { return u.Type }
+func (u *unknownInputPollType) inputPollType()  {}
+
+// unknownLinkPreviewType stands in for a LinkPreviewType variant that was trimmed from this build.
+type unknownLinkPreviewType struct{ Type string }
+
+func (u *unknownLinkPreviewType) GetType() string  { return u.Type }
+func (u *unknownLinkPreviewType) linkPreviewType() {}
+
+// unknownMessageContent stands in for a MessageContent variant that was trimmed from this build.
+type unknownMessageContent struct{ Type string }
+
+func (u *unknownMessageContent) GetType() string { return u.Type }
+func (u *unknownMessageContent) messageContent() {}
+
+// unknownMessageOrigin stands in for a MessageOrigin variant that was trimmed from this build.
+type unknownMessageOrigin struct{ Type string }
+
+func (u *unknownMessageOrigin) GetType() string { return u.Type }
+func (u *unknownMessageOrigin) messageOrigin()  {}
+
+// unknownMessageReplyTo stands in for a MessageReplyTo variant that was trimmed from this build.
+type unknownMessageReplyTo struct{ Type string }
+
+func (u *unknownMessageReplyTo) GetType() string { return u.Type }
+func (u *unknownMessageReplyTo) messageReplyTo() {}
+
+// unknownMessageSchedulingState stands in for a MessageSchedulingState variant that was trimmed from this build.
+type unknownMessageSchedulingState struct{ Type string }
+
+func (u *unknownMessageSchedulingState) GetType() string         { return u.Type }
+func (u *unknownMessageSchedulingState) messageSchedulingState() {}
+
+// unknownMessageSelfDestructType stands in for a MessageSelfDestructType variant that was trimmed from this build.
+type unknownMessageSelfDestructType struct{ Type string }
+
+func (u *unknownMessageSelfDestructType) GetType() string          { return u.Type }
+func (u *unknownMessageSelfDestructType) messageSelfDestructType() {}
+
+// unknownMessageSender stands in for a MessageSender variant that was trimmed from this build.
+type unknownMessageSender struct{ Type string }
+
+func (u *unknownMessageSender) GetType() string { return u.Type }
+func (u *unknownMessageSender) messageSender()  {}
+
+// unknownMessageSendingState stands in for a MessageSendingState variant that was trimmed from this build.
+type unknownMessageSendingState struct{ Type string }
+
+func (u *unknownMessageSendingState) GetType() string      { return u.Type }
+func (u *unknownMessageSendingState) messageSendingState() {}
+
+// unknownMessageTopic stands in for a MessageTopic variant that was trimmed from this build.
+type unknownMessageTopic struct{ Type string }
+
+func (u *unknownMessageTopic) GetType() string { return u.Type }
+func (u *unknownMessageTopic) messageTopic()   {}
+
+// unknownProfileTab stands in for a ProfileTab variant that was trimmed from this build.
+type unknownProfileTab struct{ Type string }
+
+func (u *unknownProfileTab) GetType() string { return u.Type }
+func (u *unknownProfileTab) profileTab()     {}
+
+// unknownReactionType stands in for a ReactionType variant that was trimmed from this build.
+type unknownReactionType struct{ Type string }
+
+func (u *unknownReactionType) GetType() string { return u.Type }
+func (u *unknownReactionType) reactionType()   {}
+
+// unknownReactionUnavailabilityReason stands in for a ReactionUnavailabilityReason variant that was trimmed from this build.
+type unknownReactionUnavailabilityReason struct{ Type string }
+
+func (u *unknownReactionUnavailabilityReason) GetType() string               { return u.Type }
+func (u *unknownReactionUnavailabilityReason) reactionUnavailabilityReason() {}
+
+// unknownReplyMarkup stands in for a ReplyMarkup variant that was trimmed from this build.
+type unknownReplyMarkup struct{ Type string }
+
+func (u *unknownReplyMarkup) GetType() string { return u.Type }
+func (u *unknownReplyMarkup) replyMarkup()    {}
+
+// unknownRichMessageSource stands in for a RichMessageSource variant that was trimmed from this build.
+type unknownRichMessageSource struct{ Type string }
+
+func (u *unknownRichMessageSource) GetType() string    { return u.Type }
+func (u *unknownRichMessageSource) richMessageSource() {}
+
+// unknownSessionDeviceType stands in for a SessionDeviceType variant that was trimmed from this build.
+type unknownSessionDeviceType struct{ Type string }
+
+func (u *unknownSessionDeviceType) GetType() string    { return u.Type }
+func (u *unknownSessionDeviceType) sessionDeviceType() {}
+
+// unknownSpeechRecognitionResult stands in for a SpeechRecognitionResult variant that was trimmed from this build.
+type unknownSpeechRecognitionResult struct{ Type string }
+
+func (u *unknownSpeechRecognitionResult) GetType() string          { return u.Type }
+func (u *unknownSpeechRecognitionResult) speechRecognitionResult() {}
+
+// unknownStickerFormat stands in for a StickerFormat variant that was trimmed from this build.
+type unknownStickerFormat struct{ Type string }
+
+func (u *unknownStickerFormat) GetType() string { return u.Type }
+func (u *unknownStickerFormat) stickerFormat()  {}
+
+// unknownStickerFullType stands in for a StickerFullType variant that was trimmed from this build.
+type unknownStickerFullType struct{ Type string }
+
+func (u *unknownStickerFullType) GetType() string  { return u.Type }
+func (u *unknownStickerFullType) stickerFullType() {}
+
+// unknownSuggestedPostPrice stands in for a SuggestedPostPrice variant that was trimmed from this build.
+type unknownSuggestedPostPrice struct{ Type string }
+
+func (u *unknownSuggestedPostPrice) GetType() string     { return u.Type }
+func (u *unknownSuggestedPostPrice) suggestedPostPrice() {}
+
+// unknownSuggestedPostState stands in for a SuggestedPostState variant that was trimmed from this build.
+type unknownSuggestedPostState struct{ Type string }
+
+func (u *unknownSuggestedPostState) GetType() string     { return u.Type }
+func (u *unknownSuggestedPostState) suggestedPostState() {}
+
+// unknownTextEntityType stands in for a TextEntityType variant that was trimmed from this build.
+type unknownTextEntityType struct{ Type string }
+
+func (u *unknownTextEntityType) GetType() string { return u.Type }
+func (u *unknownTextEntityType) textEntityType() {}
+
+// unknownThumbnailFormat stands in for a ThumbnailFormat variant that was trimmed from this build.
+type unknownThumbnailFormat struct{ Type string }
+
+func (u *unknownThumbnailFormat) GetType() string  { return u.Type }
+func (u *unknownThumbnailFormat) thumbnailFormat() {}
+
+// unknownUpdate stands in for a Update variant that was trimmed from this build.
+type unknownUpdate struct{ Type string }
+
+func (u *unknownUpdate) GetType() string { return u.Type }
+func (u *unknownUpdate) update()         {}
+
+// unknownUserStatus stands in for a UserStatus variant that was trimmed from this build.
+type unknownUserStatus struct{ Type string }
+
+func (u *unknownUserStatus) GetType() string { return u.Type }
+func (u *unknownUserStatus) userStatus()     {}
+
+// unknownUserType stands in for a UserType variant that was trimmed from this build.
+type unknownUserType struct{ Type string }
+
+func (u *unknownUserType) GetType() string { return u.Type }
+func (u *unknownUserType) userType()       {}
