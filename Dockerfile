@@ -48,6 +48,11 @@ RUN curl -fL \
     rm -f /tmp/deno-install.sh
 
 ENV LD_LIBRARY_PATH=/app:$LD_LIBRARY_PATH
+# Workaround for "fatal error: traceback did not unwind completely" (GC stack
+# scan crash while native TDLib/ntgcalls code is running): stop the Go runtime
+# from sending async-preemption signals into native frames.
+ENV GODEBUG=asyncpreemptoff=1
+ENV GOGC=100
 ENV TDJSON_PATH=/app/libtdjson.so.1.8.66
 
 RUN useradd -r -u 10001 appuser && \

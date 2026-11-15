@@ -126,7 +126,8 @@ func showTrackMessage(
 		DisableWebPagePreview: true,
 	}
 
-	if t.Artwork != "" && shouldShowThumb(chatID) {
+	// "Added to queue" messages never carry a thumbnail (queued == true).
+	if !queued && t.Artwork != "" && shouldShowThumb(chatID) {
 		// Every thumbnail is sent in 16:9 (see thumb169.go).
 		photoFile := thumb169(t.Artwork)
 		content := &td.InputMessagePhoto{

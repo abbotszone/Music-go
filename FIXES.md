@@ -33,3 +33,9 @@ Behaviour
 - .env.example: DURATION_LIMIT fixed (4200), OWNER_ID blank.
 
 Not compiled here (no Go toolchain) - run `go build` / `go vet ./...` once.
+
+Round 2
+- "Added to queue" message no longer shows a thumbnail (text only). Now-playing keeps it.
+- HTTP health server starts first; startup failures are reported to LOGGER_ID.
+- Dockerfile: GODEBUG=asyncpreemptoff=1 (workaround for the Go runtime
+  "traceback did not unwind completely" GC crash with native libs).
