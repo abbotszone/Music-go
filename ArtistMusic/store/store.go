@@ -53,8 +53,8 @@ func Init(mongoURL string) (func(), error) {
 	logr.Debug("Successfully connected to MongoDB.")
 
 	database = client.Database(config.DBName)
-	settingsColl = store.Collection("bot_settings")
-	chatSettingsColl = store.Collection("chat_settings")
+	settingsColl = database.Collection("bot_settings")
+	chatSettingsColl = database.Collection("chat_settings")
 
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
