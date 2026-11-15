@@ -92,25 +92,6 @@ func handleChatMemberAdd(c *td.Client, m *td.Message) error {
 			continue
 		}
 
-		if blockedChat, _ := database.IsBlacklistedChat(chatID); blockedChat && !isOwnerOrSudo(m.SenderID()) {
-			if _, rerr := m.ReplyText(c, F(chatID, "blacklist_chat_blocked"), nil); rerr != nil {
-				logger.Error(rerr)
-			}
-			leaveChat(c, chatID)
-			return nil
-		}
-
-		ownerID, err := utils.GetChatOwner(c, chatID)
-		if err == nil {
-			if blockedOwner, _ := database.IsBlacklistedUser(ownerID); blockedOwner && !isOwnerOrSudo(m.SenderID()) {
-				if _, rerr := m.ReplyText(c, F(chatID, "blacklist_owner_blocked_leave"), nil); rerr != nil {
-					logger.Error(rerr)
-				}
-				leaveChat(c, chatID)
-				return nil
-			}
-		}
-
 		logger.Debug("Bot added to " + utils.IntToStr(chatID))
 		if _, rerr := m.ReplyText(c, F(chatID, "bot_added_normal"), nil); rerr != nil {
 			return rerr
@@ -132,7 +113,6 @@ func handleChatMemberAdd(c *td.Client, m *td.Message) error {
 func handleBotRemoved(c *td.Client, u *td.UpdateChatMember, chatID int64) {
 	logger.Debugf("Bot removed from chat %d", chatID)
 
-	cleanScheduler.cancel(chatID)
 	core.DropRoom(chatID)
 	core.DropChatState(chatID)
 	database.RemoveServedChat(chatID)
@@ -201,12 +181,8 @@ func handleVoiceChatAction(c *td.Client, m *td.Message) error {
 	logger.Debugf("Voice chat %s in %d", msgKey, chatID)
 
 	if !isActive {
-		room, ok := core.RoomFor(chatID)
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			if ok {
-				scheduleOldPlayingMessage(room)
-			}
 			core.DropRoom(chatID)
 			logger.Debugf("Room destroyed for ended voice chat in %d", chatID)
 		}()

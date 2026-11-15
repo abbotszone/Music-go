@@ -17,102 +17,13 @@
 
 package locales
 
-import (
-	"regexp"
-	"strings"
-)
+import "regexp"
 
 var emojiRegex = regexp.MustCompile(`\{emoji:([^}]+)\}`)
 
-// Emoji tokens that can be used inside any locale template as {emoji:<emoji>}.
-// A token whose mapped value is empty expands to the bare emoji character;
-// special tokens (premium/custom emoji) carry their Telegram entity id and the
-// <tg-emoji> tag is assembled in expandEmojis. The tag is language independent,
-// so tokens expand identically for every locale.
-var emojiTokens = map[string]string{
-	"{emoji:⏩}":    "",
-	"{emoji:⏭️}":   "",
-	"{emoji:⏰}":    "",
-	"{emoji:⏱}":    "",
-	"{emoji:⏱️}":   "",
-	"{emoji:⏳}":    "",
-	"{emoji:⏸️}":   "",
-	"{emoji:⏹️}":   "",
-	"{emoji:▶️}":   "",
-	"{emoji:♻️}":   "",
-	"{emoji:⚙️}":   "",
-	"{emoji:⚠️}":   "",
-	"{emoji:⚡}":    "",
-	"{emoji:⚪}":    "",
-	"{emoji:✅}":    "",
-	"{emoji:✨}":    "",
-	"{emoji:❌}":    "",
-	"{emoji:➕}":    "",
-	"{emoji:➡️}":   "",
-	"{emoji:🌍}":    "",
-	"{emoji:🌐}":    "",
-	"{emoji:🍃}":    "",
-	"{emoji:🎙️}":   "",
-	"{emoji:🎧}":    "",
-	"{emoji:🎵}":    "5359529383319084413",
-	"{emoji:🎶}":    "",
-	"{emoji:🏃‍♂️}": "",
-	"{emoji:🏓}":    "",
-	"{emoji:👋}":    "",
-	"{emoji:👍}":    "5368324170671202286",
-	"{emoji:👑}":    "",
-	"{emoji:👤}":    "",
-	"{emoji:👥}":    "",
-	"{emoji:💡}":    "",
-	"{emoji:💫}":    "",
-	"{emoji:💬}":    "",
-	"{emoji:💻}":    "",
-	"{emoji:📊}":    "",
-	"{emoji:📌}":    "",
-	"{emoji:📍}":    "",
-	"{emoji:📚}":    "",
-	"{emoji:📛}":    "",
-	"{emoji:📜}":    "",
-	"{emoji:📝}":    "",
-	"{emoji:📡}":    "",
-	"{emoji:📥}":    "",
-	"{emoji:📦}":    "",
-	"{emoji:📭}":    "",
-	"{emoji:🔀}":    "",
-	"{emoji:🔁}":    "",
-	"{emoji:🔇}":    "",
-	"{emoji:🔊}":    "",
-	"{emoji:🔍}":    "",
-	"{emoji:🔗}":    "",
-	"{emoji:🔧}":    "",
-	"{emoji:🔴}":    "",
-	"{emoji:🖼️}":   "",
-	"{emoji:🗑️}":   "",
-	"{emoji:😂}":    "",
-	"{emoji:😉}":    "",
-	"{emoji:😎}":    "",
-	"{emoji:🚀}":    "",
-	"{emoji:🚫}":    "",
-	"{emoji:🛠}":    "",
-	"{emoji:🛠️}":   "",
-	"{emoji:🛡️}":   "",
-	"{emoji:🟢}":    "",
-	"{emoji:🤖}":    "",
-	"{emoji:🧩}":    "",
-	"{emoji:🧹}":    "",
-	"{emoji:💮}":    "",
-	"{emoji:🎋}":    "",
-	"{emoji:💐}":    "",
-	"{emoji:🥀}":    "",
-}
-
+// expandEmojis unwraps legacy {emoji:X} tokens into the bare symbol X.
+// Emojis were replaced by plain text symbols, so no custom <tg-emoji>
+// entities are generated any more.
 func expandEmojis(s string) string {
-	return emojiRegex.ReplaceAllStringFunc(s, func(match string) string {
-		emojiID, exists := emojiTokens[match]
-		rawEmoji := strings.TrimSuffix(strings.TrimPrefix(match, "{emoji:"), "}")
-		if exists && emojiID != "" {
-			return `<tg-emoji emoji-id="` + emojiID + `">` + rawEmoji + `</tg-emoji>`
-		}
-		return rawEmoji
-	})
+	return emojiRegex.ReplaceAllString(s, "$1")
 }

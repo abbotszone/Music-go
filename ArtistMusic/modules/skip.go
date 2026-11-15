@@ -38,15 +38,15 @@ func init() {
 <u>Usage:</u>
 <b>/skip</b> — Skip current track
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Downloads next track in queue
 • Starts playback automatically
 • If queue is empty and loop is 0, stops playback
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Cannot be undone
 • If no tracks in queue, playback stops
 • Loop count affects skip behavior`
@@ -56,12 +56,12 @@ func init() {
 <u>Usage:</u>
 <b>/askip</b> — Skip current track to next autoplay track
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Automatically picks a non-repeating recommendation
 • Skips tracks already played in the current session
 • Seamlessly continues playback
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this`
 }
 
@@ -72,26 +72,8 @@ func skipHandler(c *td.Client, m *td.Message) error {
 	return handleSkip(c, m, false)
 }
 
-func cskipHandler(c *td.Client, m *td.Message) error {
-	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) {
-		return nil
-	}
-	return handleSkip(c, m, true)
-}
 
-func askipHandler(c *td.Client, m *td.Message) error {
-	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) {
-		return nil
-	}
-	return handleAutoplaySkip(c, m, false)
-}
 
-func caskipHandler(c *td.Client, m *td.Message) error {
-	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) {
-		return nil
-	}
-	return handleAutoplaySkip(c, m, true)
-}
 
 func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 	r, err := getEffectiveRoom(m.ChatID(), cplay)
@@ -138,7 +120,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 		if r.Autoplay() {
 			return handleAutoplaySkip(c, m, cplay)
 		}
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		_, err := m.ReplyText(c, F(chatID, "skip_stopped", locales.Arg{
 			"user": mention,
@@ -151,7 +132,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 	for i := 1; i < skipCount; i++ {
 		if len(r.Queue()) == 0 {
 
-			scheduleOldPlayingMessage(r)
 			core.DropRoom(r.ID)
 			_, err := m.ReplyText(c, F(chatID, "skip_stopped", locales.Arg{
 				"user": mention,
@@ -163,7 +143,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 
 	if len(r.Queue()) == 0 {
 
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		_, err := m.ReplyText(c, F(chatID, "skip_stopped", locales.Arg{
 			"user": mention,
@@ -174,7 +153,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 	t := r.NextTrack()
 	if t == nil {
 
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		_, err := m.ReplyText(c, F(chatID, "skip_stopped", locales.Arg{
 			"user": mention,
@@ -203,7 +181,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 			core.Bot.SendTextMessage(chatID, txt, nil)
 		}
 
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}
@@ -215,7 +192,6 @@ func handleSkip(c *td.Client, m *td.Message, cplay bool) error {
 		} else {
 			core.Bot.SendTextMessage(chatID, txt, nil)
 		}
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}
@@ -273,7 +249,6 @@ func handleAutoplaySkip(c *td.Client, m *td.Message, cplay bool) error {
 	}
 
 	r.SetLoop(0)
-	scheduleOldPlayingMessage(r)
 
 	var path string
 	var dlErr error
@@ -303,7 +278,6 @@ func handleAutoplaySkip(c *td.Client, m *td.Message, cplay bool) error {
 		} else {
 			core.Bot.SendTextMessage(chatID, txt, nil)
 		}
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}
@@ -315,7 +289,6 @@ func handleAutoplaySkip(c *td.Client, m *td.Message, cplay bool) error {
 		} else {
 			core.Bot.SendTextMessage(chatID, txt, nil)
 		}
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}

@@ -21,7 +21,6 @@ import (
 	"embed"
 	"fmt"
 	"path"
-	"sort"
 	"strings"
 
 	"ArtistMusic/ArtistMusic/logger"
@@ -106,13 +105,3 @@ func Get(lang, key string, values Arg) string {
 	return expandEmojis(val)
 }
 
-func GetAvailableLanguages() []string {
-	langs := make([]string, 0, len(loadedLocales))
-
-	for lang := range loadedLocales {
-		langs = append(langs, lang)
-	}
-
-	sort.Strings(langs)
-	return langs
-}

@@ -216,7 +216,7 @@ func sendPlayLogs(c *td.Client, m *td.Message, track *state.Track, queued bool) 
 	}
 
 	var sb strings.Builder
-	sb.WriteString("🎵 ")
+	sb.WriteString("♪ ")
 	if groupLink != "" {
 		fmt.Fprintf(&sb, "<b><a href=\"%s\">%s</a></b>\n\n", groupLink, header)
 	} else {
@@ -268,7 +268,7 @@ func sendAutoplayLogs(c *td.Client, chatID int64, track *state.Track, statusMsg 
 	header := F(chatID, "logger_playback_started")
 
 	var sb strings.Builder
-	sb.WriteString("🎵 ")
+	sb.WriteString("♪ ")
 	if groupLink != "" {
 		fmt.Fprintf(&sb, "<b><a href=\"%s\">%s</a></b>\n\n", groupLink, header)
 	} else {
@@ -294,130 +294,30 @@ func sendAutoplayLogs(c *td.Client, chatID int64, track *state.Track, statusMsg 
 	}
 }
 
+// WithBlacklistCallback is kept as a thin wrapper so handler registration
+// stays uniform. Blacklist and maintenance checks were removed.
 func WithBlacklistCallback(
 	handler func(*td.Client, *td.UpdateNewCallbackQuery) error,
 ) func(*td.Client, *td.UpdateNewCallbackQuery) error {
-	return func(c *td.Client, cb *td.UpdateNewCallbackQuery) error {
-		if blocked, _ := database.IsBlacklistedUser(cb.SenderUserId); blocked {
-			return nil
-		}
-		if blockedChat, _ := database.IsBlacklistedChat(cb.ChatId); blockedChat &&
-			!isOwnerOrSudo(cb.SenderUserId) {
-			return nil
-		}
-
-		if !canBypassMaintenance(cb.SenderUserId) {
-			cb.Answer(c, 0, true, F(cb.ChatId, "maint", locales.Arg{"reason": ""}), "")
-			return td.EndGroups
-		}
-
-		return handler(c, cb)
-	}
+	return handler
 }
 
+// WithBlacklistMessage runs the handler and, for private chats, deletes the
+// command message afterwards.
 func WithBlacklistMessage(
 	handler func(*td.Client, *td.Message) error,
 ) func(*td.Client, *td.Message) error {
 	return func(c *td.Client, m *td.Message) error {
-		if blockedChat, _ := database.IsBlacklistedChat(m.ChatID()); blockedChat &&
-			!isOwnerOrSudo(m.SenderID()) {
-			if _, err := m.ReplyText(c, F(m.ChatID(), "blacklist_chat_blocked"), nil); err != nil {
-				logger.Error(err)
-			}
-			leaveChat(c, m.ChatID())
-			return nil
-		}
-		if blocked, _ := database.IsBlacklistedUser(m.SenderID()); blocked {
-			if chat, err := m.GetChat(c); err == nil {
-				if sg, ok := chat.Type.(*td.ChatTypeSupergroup); ok && sg.IsChannel {
-					if chatOwnerID, err := utils.GetChatOwner(c, m.ChatID()); err == nil && chatOwnerID == m.SenderID() {
-						if _, rerr := m.ReplyText(c, F(m.ChatID(), "blacklist_owner_blocked_leave"), nil); rerr != nil {
-							logger.Error(rerr)
-						}
-						leaveChat(c, m.ChatID())
-						return nil
-					}
-				}
-			}
-
-			if m.IsPrivate() || messageMentionsBot(c, m) {
-				if _, rerr := m.ReplyText(c, F(m.ChatID(), "blacklist_user_blocked"), nil); rerr != nil {
-					logger.Error(rerr)
-				}
-			}
-			return nil
-		}
-
-		if !canBypassMaintenance(m.SenderID()) {
-			if m.IsPrivate() || messageMentionsBot(c, m) {
-				reason, _ := database.MaintenanceReason()
-				msg := F(m.ChatID(), "maint", locales.Arg{
-					"reason": F(
-						m.ChatID(),
-						"maint_reason",
-						locales.Arg{"reason": reason},
-					),
-				})
-				if _, rerr := m.ReplyText(c, msg, nil); rerr != nil {
-					logger.Error(rerr)
-				}
-			}
-			return td.EndGroups
-		}
-
 		err := handler(c, m)
 
-		if m.IsCommand() {
-			if m.IsPrivate() {
-				if err := m.Delete(c, true); err != nil {
-					logger.Debugf("failed to delete command message: %v", err)
-				}
-			} else if isEnabled, _ := database.CommandDelete(m.ChatID()); isEnabled {
-				if err := m.Delete(c, true); err != nil {
-					logger.Debugf("failed to delete command message: %v", err)
-				}
-			} else {
-				cleanMode, _ := database.CleanMode(m.ChatID())
-				if cleanMode {
-					cleanScheduler.schedule(m.ChatID(), m.Id)
-				}
+		if m.IsCommand() && m.IsPrivate() {
+			if derr := m.Delete(c, true); derr != nil {
+				logger.Debugf("failed to delete command message: %v", derr)
 			}
 		}
 
 		return err
 	}
-}
-
-// canBypassMaintenance reports whether the user is allowed to use the bot
-// while maintenance mode is active (owner or sudo users).
-func canBypassMaintenance(userID int64) bool {
-	isMaint, _ := database.IsMaintenanceEnabled()
-	if !isMaint {
-		return true
-	}
-	if userID == config.OwnerID {
-		return true
-	}
-	ok, _ := database.IsSudo(userID)
-	return ok
-}
-
-// messageMentionsBot reports whether the first word of the message mentions
-// the bot by username (e.g. "/cmd@BotUsername").
-func messageMentionsBot(c *td.Client, m *td.Message) bool {
-	fields := strings.Fields(m.Text())
-	if len(fields) == 0 {
-		return false
-	}
-	_, mention, ok := strings.Cut(fields[0], "@")
-	if !ok || mention == "" {
-		return false
-	}
-	username := ""
-	if c.Me != nil && c.Me.Usernames != nil && len(c.Me.Usernames.ActiveUsernames) > 0 {
-		username = strings.ToLower(c.Me.Usernames.ActiveUsernames[0])
-	}
-	return username != "" && strings.EqualFold(mention, username)
 }
 
 func leaveChat(c *td.Client, chatID int64) {

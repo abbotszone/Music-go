@@ -40,16 +40,16 @@ func init() {
 <u>Usage:</u>
 <b>/restart</b> — Restart bot
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Stops all active rooms
 • Notifies all active chats
 • Restarts bot process
 • Clears download cache
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • <b>Owner only</b> command
 
-<b>⚠️ Warning:</b>
+<b>ϟ Warning:</b>
 All playback will be interrupted. Bot will be offline for a few seconds.`
 }
 

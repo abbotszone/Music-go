@@ -37,23 +37,23 @@ func init() {
 <u>Usage:</u>
 <b>/reload</b> — Refresh all cached data
 
-<b>🔄 What Gets Reloaded:</b>
+<b>◉ What Gets Reloaded:</b>
 • Chat admin list
 • Voice chat status
 • Assistant presence status
 • Assistant ban status
 
-<b>🔒 Flood Protection:</b>
+<b>◆ Flood Protection:</b>
 • Regular users: 5 minute cooldown
 • Admins: 2 minute cooldown
 
-<b>💡 When to Use:</b>
+<b>◇ When to Use:</b>
 • After promoting/demoting admins
 • Voice chat issues
 • Permission problems
 • Bot behaving incorrectly
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • May reset room state if admin permissions required
 `
 }
@@ -65,12 +65,6 @@ func reloadHandler(c *td.Client, m *td.Message) error {
 	return handleReload(c, m, false)
 }
 
-func creloadHandler(c *td.Client, m *td.Message) error {
-	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) {
-		return nil
-	}
-	return handleReload(c, m, true)
-}
 
 func handleReload(c *td.Client, m *td.Message, cplay bool) error {
 	r, err := getEffectiveRoom(m.ChatID(), cplay)

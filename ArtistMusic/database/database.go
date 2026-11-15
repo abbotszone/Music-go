@@ -24,7 +24,6 @@ import (
 	"ArtistMusic/config"
 	"ArtistMusic/ArtistMusic/logger"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
@@ -36,8 +35,6 @@ var (
 	database         *mongo.Database
 	settingsColl     *mongo.Collection
 	chatSettingsColl *mongo.Collection
-	playlistColl     *mongo.Collection
-	vcLoggerColl     *mongo.Collection
 
 	logr              = logger.GetLogger("Database")
 	dbCache           = utils.NewCache[string, any](60 * time.Minute)
@@ -57,10 +54,6 @@ func Init(mongoURL string) (func(), error) {
 	database = client.Database(config.DBName)
 	settingsColl = database.Collection("bot_settings")
 	chatSettingsColl = database.Collection("chat_settings")
-	playlistColl = database.Collection("playlists")
-	vcLoggerColl = database.Collection("vclogger")
-
-	migrateData()
 
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -73,10 +66,3 @@ func Init(mongoURL string) (func(), error) {
 	}, nil
 }
 
-func GetMongoDBStats() (bson.M, error) {
-	ctx, cancel := ctx()
-	defer cancel()
-	var result bson.M
-	err := database.RunCommand(ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&result)
-	return result, err
-}

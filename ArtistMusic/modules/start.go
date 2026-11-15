@@ -65,12 +65,24 @@ func handlePmStart(c *td.Client, m *td.Message, sender *td.User) error {
 	caption := startCaption(c, m.ChatID(), sender, m.SenderID())
 
 	if image := config.StartImage(); image != "" {
-		if _, err := c.SendPhoto(m.ChatID(), td.InputFileRemote{Id: image}, &td.SendPhotoOpts{
-			Caption:     caption,
-			ReplyMarkup: core.GetStartMarkup(m.ChatID()),
-		}); err == nil {
+		markup := core.GetStartMarkup(m.ChatID())
+		var err error
+		if isAnimationURL(image) {
+			_, err = c.SendAnimation(m.ChatID(), td.InputFileRemote{Id: image}, &td.SendAnimationOpts{
+				Caption:     caption,
+				ParseMode:   td.ParseModeHTML,
+				ReplyMarkup: markup,
+			})
+		} else {
+			_, err = c.SendPhoto(m.ChatID(), td.InputFileRemote{Id: image}, &td.SendPhotoOpts{
+				Caption:     caption,
+				ReplyMarkup: markup,
+			})
+		}
+		if err == nil {
 			return nil
 		}
+		c.Logger.Error("start image send failed, falling back to text", "error", err)
 	}
 
 	_, err := c.SendTextMessage(m.ChatID(), caption, &td.SendTextMessageOpts{
@@ -103,12 +115,7 @@ func startCB(c *td.Client, cb *td.UpdateNewCallbackQuery) error {
 		return err
 	}
 
-	content := &td.InputMessagePhoto{
-		Photo: &td.InputPhoto{
-			Photo: td.InputFileRemote{Id: config.StartImage()},
-		},
-		Caption: formattedCaption,
-	}
+	content := mediaContent(config.StartImage(), formattedCaption)
 
 	_, err = c.EditMessageMedia(cb.ChatId, content, msg.Id, &td.EditMessageMediaOpts{
 		ReplyMarkup: markup,
@@ -116,9 +123,43 @@ func startCB(c *td.Client, cb *td.UpdateNewCallbackQuery) error {
 	return err
 }
 
+// isPhotoMessage reports whether m is a media message that carries a caption
+// (photo, animation/GIF or video) instead of plain text.
 func isPhotoMessage(m *td.Message) bool {
-	_, ok := m.Content.(*td.MessagePhoto)
-	return ok
+	switch m.Content.(type) {
+	case *td.MessagePhoto, *td.MessageAnimation, *td.MessageVideo:
+		return true
+	}
+	return false
+}
+
+// isAnimationURL reports whether the URL points to a GIF/MP4-style animation.
+func isAnimationURL(u string) bool {
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	u = strings.ToLower(u)
+	for _, ext := range []string{".mp4", ".gif", ".webm", ".mov"} {
+		if strings.HasSuffix(u, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// mediaContent builds the right input content (animation or photo) for a
+// remote start/ping image URL.
+func mediaContent(url string, caption *td.FormattedText) td.InputMessageContent {
+	if isAnimationURL(url) {
+		return &td.InputMessageAnimation{
+			Animation: &td.InputAnimation{Animation: td.InputFileRemote{Id: url}},
+			Caption:   caption,
+		}
+	}
+	return &td.InputMessagePhoto{
+		Photo:   &td.InputPhoto{Photo: td.InputFileRemote{Id: url}},
+		Caption: caption,
+	}
 }
 
 // isChannelPost reports whether m came from a broadcast channel.

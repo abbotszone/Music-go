@@ -19,7 +19,6 @@ package modules
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	td "github.com/ArtistMusic/Artist"
@@ -32,33 +31,12 @@ func queueHandler(c *td.Client, m *td.Message) error {
 	return handleQueue(c, m, false)
 }
 
-func cqueueHandler(c *td.Client, m *td.Message) error {
-	return handleQueue(c, m, true)
-}
 
-func removeHandler(c *td.Client, m *td.Message) error {
-	return handleRemove(c, m, false)
-}
 
-func cremoveHandler(c *td.Client, m *td.Message) error {
-	return handleRemove(c, m, true)
-}
 
-func moveHandler(c *td.Client, m *td.Message) error {
-	return handleMove(c, m, false)
-}
 
-func cmoveHandler(c *td.Client, m *td.Message) error {
-	return handleMove(c, m, true)
-}
 
-func clearHandler(c *td.Client, m *td.Message) error {
-	return handleClear(c, m, false)
-}
 
-func cclearHandler(c *td.Client, m *td.Message) error {
-	return handleClear(c, m, true)
-}
 
 func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
 	if !isSuperGroup(c, m) {
@@ -93,7 +71,7 @@ func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
 
 	fmt.Fprintf(
 		&b,
-		"🎧 <a href=\"%s\">%s</a> — %s [%s]\n\n",
+		"♬ <a href=\"%s\">%s</a> — %s [%s]\n\n",
 		t.URL,
 		utils.EscapeHTML(utils.ShortTitle(t.Title, 35)),
 		t.Requester,
@@ -123,7 +101,7 @@ func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
 
 			fmt.Fprintf(
 				&b,
-				"%d. 🎵 <a href=\"%s\">%s</a> — %s [%s]\n",
+				"%d. ♪ <a href=\"%s\">%s</a> — %s [%s]\n",
 				i+1,
 				track.URL,
 				utils.EscapeHTML(utils.ShortTitle(track.Title, 35)),
@@ -147,7 +125,7 @@ func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
 
 			fmt.Fprintf(
 				&full,
-				"🎧 %s — %s [%s]\n\n",
+				"♬ %s — %s [%s]\n\n",
 				t.Title,
 				t.Requester,
 				utils.FormatDuration(t.Duration),
@@ -189,173 +167,5 @@ func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
 	return rerr
 }
 
-func handleRemove(c *td.Client, m *td.Message, cplay bool) error {
-	if !isSuperGroup(c, m) {
-		return nil
-	}
 
-	if !filterAuthUsers(c, m) {
-		return nil
-	}
 
-	chatID := m.ChatID()
-
-	r, err := getEffectiveRoom(m.ChatID(), cplay)
-	if err != nil {
-		_, err := m.ReplyText(c, err.Error(), nil)
-		return err
-	}
-	t := r.Track()
-	if !r.Active() || t == nil {
-		_, err := m.ReplyText(c, F(chatID, "queue_no_active"), nil)
-		return err
-	}
-
-	if len(r.Queue()) == 0 {
-		_, err := m.ReplyText(c, F(chatID, "queue_empty"), nil)
-		return err
-	}
-
-	args := strings.Fields(m.Text())
-	if len(args) < 2 {
-		_, err := m.ReplyText(c, F(chatID, "remove_usage", locales.Arg{
-			"cmd": getCommand(m),
-		}), nil)
-		return err
-	}
-
-	index, err := strconv.Atoi(args[1])
-	if err != nil {
-		_, err := m.ReplyText(c, F(chatID, "remove_invalid_index"), nil)
-		return err
-	}
-
-	if index <= 0 {
-		_, err := m.ReplyText(c, F(chatID, "remove_index_too_small"), nil)
-		return err
-	}
-
-	total := len(r.Queue())
-	if index > total {
-		_, err := m.ReplyText(c, F(chatID, "remove_index_too_big", locales.Arg{
-			"total": total,
-		}), nil)
-		return err
-	}
-
-	r.RemoveTrack(index - 1)
-
-	sender, _ := m.GetUser(c)
-	mention := mentionOf(sender, m.SenderID())
-	_, rerr := m.ReplyText(c, F(chatID, "remove_success", locales.Arg{
-		"index": index,
-		"user":  mention,
-	}), nil)
-	return rerr
-}
-
-func handleClear(c *td.Client, m *td.Message, cplay bool) error {
-	if !isSuperGroup(c, m) {
-		return nil
-	}
-
-	if !filterAuthUsers(c, m) {
-		return nil
-	}
-
-	chatID := m.ChatID()
-
-	r, err := getEffectiveRoom(m.ChatID(), cplay)
-	if err != nil {
-		_, err := m.ReplyText(c, err.Error(), nil)
-		return err
-	}
-	t := r.Track()
-	if !r.Active() || t == nil {
-		_, err := m.ReplyText(c, F(chatID, "clear_no_active"), nil)
-		return err
-	}
-
-	if len(r.Queue()) == 0 {
-		_, err := m.ReplyText(c, F(chatID, "queue_empty"), nil)
-		return err
-	}
-
-	r.RemoveTrack(-1)
-
-	sender, _ := m.GetUser(c)
-	mention := mentionOf(sender, m.SenderID())
-	_, rerr := m.ReplyText(c, F(chatID, "clear_success", locales.Arg{
-		"user": mention,
-	}), nil)
-	return rerr
-}
-
-func handleMove(c *td.Client, m *td.Message, cplay bool) error {
-	if !isSuperGroup(c, m) {
-		return nil
-	}
-
-	if !filterAuthUsers(c, m) {
-		return nil
-	}
-
-	chatID := m.ChatID()
-
-	r, err := getEffectiveRoom(m.ChatID(), cplay)
-	if err != nil {
-		_, err := m.ReplyText(c, err.Error(), nil)
-		return err
-	}
-
-	if !r.Active() || r.Track() == nil {
-		_, err := m.ReplyText(c, F(chatID, "queue_no_active"), nil)
-		return err
-	}
-
-	if len(r.Queue()) == 0 {
-		_, err := m.ReplyText(c, F(chatID, "queue_empty"), nil)
-		return err
-	}
-
-	args := strings.Fields(m.Text())
-	if len(args) < 3 {
-		_, err := m.ReplyText(c, F(chatID, "move_usage", locales.Arg{
-			"cmd": getCommand(m),
-		}), nil)
-		return err
-	}
-
-	from, err1 := strconv.Atoi(args[1])
-	to, err2 := strconv.Atoi(args[2])
-	if err1 != nil || err2 != nil {
-		_, err := m.ReplyText(c, F(chatID, "move_invalid_numbers", locales.Arg{
-			"cmd": getCommand(m),
-		}), nil)
-		return err
-	}
-
-	if from <= 0 || to <= 0 {
-		_, err := m.ReplyText(c, F(chatID, "move_invalid_indexes_min"), nil)
-		return err
-	}
-
-	queueLen := len(r.Queue())
-	if from > queueLen || to > queueLen {
-		_, err := m.ReplyText(c, F(chatID, "move_invalid_indexes_max", locales.Arg{
-			"queue_len": queueLen,
-		}), nil)
-		return err
-	}
-
-	r.MoveTrack(from-1, to-1)
-
-	sender, _ := m.GetUser(c)
-	mention := mentionOf(sender, m.SenderID())
-	_, rerr := m.ReplyText(c, F(chatID, "move_success", locales.Arg{
-		"from": from,
-		"to":   to,
-		"user": mention,
-	}), nil)
-	return rerr
-}

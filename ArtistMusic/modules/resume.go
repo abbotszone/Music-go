@@ -32,11 +32,11 @@ func init() {
 <u>Usage:</u>
 <b>/resume</b> — Resume playback from pause
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Continues from last paused position
 • Cancels auto-resume timer if active
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Can only resume if currently paused
 • Position is preserved during pause
 • Speed settings remain active after resume`
@@ -46,9 +46,6 @@ func resumeHandler(c *td.Client, m *td.Message) error {
 	return handleResume(c, m, false)
 }
 
-func cresumeHandler(c *td.Client, m *td.Message) error {
-	return handleResume(c, m, true)
-}
 
 func handleResume(c *td.Client, m *td.Message, cplay bool) error {
 	if !isSuperGroup(c, m) {

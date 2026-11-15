@@ -66,11 +66,3 @@ func EOR(
 	return m, err
 }
 
-// ToInt64s converts a slice of int32 message IDs to a slice of int64.
-func ToInt64s(ids []int32) []int64 {
-	out := make([]int64, len(ids))
-	for i, id := range ids {
-		out[i] = int64(id)
-	}
-	return out
-}

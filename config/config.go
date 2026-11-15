@@ -99,6 +99,10 @@ func Load() error {
 		}
 	}
 
+	if len(StartImages) == 0 {
+		StartImages = []string{DefaultStartImage}
+	}
+
 	if err := validateConfig(); err != nil {
 		return err
 	}
@@ -126,6 +130,9 @@ func validateConfig() error {
 
 	return nil
 }
+
+// DefaultStartImage is used when START_IMAGES / START_IMG_URL are not set.
+const DefaultStartImage = "https://artistbox.bond/f/bwifjv9e.mp4"
 
 func StartImage() string {
 	if len(StartImages) == 0 {

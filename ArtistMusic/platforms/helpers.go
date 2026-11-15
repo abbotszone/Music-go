@@ -163,12 +163,6 @@ func cookieModeOf(ctx context.Context) cookieMode {
 	return cookiesAuto
 }
 
-func sanitizeAPIError(err error, apiKey string) error {
-	if err == nil || apiKey == "" {
-		return err
-	}
-	return errors.New(strings.ReplaceAll(err.Error(), apiKey, "***REDACTED***"))
-}
 
 func firstNonEmpty(vals ...string) string {
 	for _, v := range vals {

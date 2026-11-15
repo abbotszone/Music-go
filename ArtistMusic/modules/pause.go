@@ -32,10 +32,10 @@ func init() {
 <u>Usage:</u>
 <b>/pause</b> — Pause playback
 
-<b>⚙️ Features:</b>
+<b>❖ Features:</b>
 • Manual pause/resume control
 
-<b>💡 Examples:</b>
+<b>◇ Examples:</b>
 <code>/pause</code> — Pause indefinitely
 `
 }
@@ -44,9 +44,6 @@ func pauseHandler(c *td.Client, m *td.Message) error {
 	return handlePause(c, m, false)
 }
 
-func cpauseHandler(c *td.Client, m *td.Message) error {
-	return handlePause(c, m, true)
-}
 
 func handlePause(c *td.Client, m *td.Message, cplay bool) error {
 	if !isSuperGroup(c, m) {

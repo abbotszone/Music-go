@@ -32,7 +32,7 @@ func init() {
 <u>Usage:</u>
 <b>/unmute</b> — Restore audio
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Restores audio immediately
 • Cancels auto-unmute timer if active
 • Shows current playback info`
@@ -42,9 +42,6 @@ func unmuteHandler(c *td.Client, m *td.Message) error {
 	return handleUnmute(c, m, false)
 }
 
-func cunmuteHandler(c *td.Client, m *td.Message) error {
-	return handleUnmute(c, m, true)
-}
 
 func handleUnmute(c *td.Client, m *td.Message, cplay bool) error {
 	if m.Args() != "" {

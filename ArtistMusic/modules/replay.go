@@ -32,12 +32,12 @@ func init() {
 <u>Usage:</u>
 <b>/replay</b> — Restart current track
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Resets position to 0:00
 • Maintains speed setting
 • Continues playback immediately
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this
 `
 }
@@ -46,9 +46,6 @@ func replayHandler(c *td.Client, m *td.Message) error {
 	return handleReplay(c, m, false)
 }
 
-func creplayHandler(c *td.Client, m *td.Message) error {
-	return handleReplay(c, m, true)
-}
 
 func handleReplay(c *td.Client, m *td.Message, cplay bool) error {
 	if !isSuperGroup(c, m) {

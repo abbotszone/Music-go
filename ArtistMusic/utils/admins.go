@@ -18,7 +18,6 @@
 package utils
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
@@ -53,22 +52,6 @@ func RefreshChatAdmin(c *td.Client, chatID int64) ([]int64, error) {
 	return fetchAdmins(c, chatID)
 }
 
-// GetChatOwner returns the ID of the chat owner (creator), caching the result.
-func GetChatOwner(c *td.Client, chatID int64) (int64, error) {
-	if owner, ok := ownerCache.Get(chatID); ok {
-		return owner, nil
-	}
-
-	if _, err := fetchAdmins(c, chatID); err != nil {
-		return 0, err
-	}
-
-	owner, ok := ownerCache.Get(chatID)
-	if !ok {
-		return 0, fmt.Errorf("chat owner not found")
-	}
-	return owner, nil
-}
 
 // AddChatAdmin adds a user to the cached admin list of a chat.
 // If the chat is not cached yet, its admin data is fetched first.

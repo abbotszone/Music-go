@@ -256,7 +256,6 @@ func handleSkipAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 	logger.Infof("Callback → skip, chatID=%d", chatID)
 
 	if len(r.Queue()) == 0 {
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		if _, err := u.EditMessageText(c, F(chatID, "skip_stopped", locales.Arg{
 			"user": mentionOfSender(c, u.SenderUserId),
@@ -282,7 +281,6 @@ func handleSkipAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 			"error": err.Error(),
 		}), nil)
 		u.Answer(c, 0, true, F(chatID, "cb_skip_download_failed"), "")
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}
@@ -291,7 +289,6 @@ func handleSkipAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 		logger.Errorf("Play error: %v", err)
 		utils.EOR(c, statusMsg, F(chatID, "stream_play_fail"), nil)
 		u.Answer(c, 0, true, F(chatID, "cb_skip_play_failed"), "")
-		scheduleOldPlayingMessage(r)
 		core.DropRoom(r.ID)
 		return nil
 	}
@@ -378,7 +375,6 @@ func handleStopAction(c *td.Client, u *td.UpdateNewCallbackQuery, r *core.RoomSt
 	chatID := u.ChatId
 	logger.Infof("Callback → stop, chatID=%d", chatID)
 
-	scheduleOldPlayingMessage(r)
 	core.DropRoom(r.ID)
 
 	u.Answer(c, 0, true, F(chatID, "cb_stop_success"), "")

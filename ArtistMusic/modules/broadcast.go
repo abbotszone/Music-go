@@ -127,7 +127,7 @@ func init() {
 <b>/broadcast -cancel</b> — Cancel the ongoing broadcast.
 
 <blockquote>
-<b>🎯 Who gets it:</b>
+<b>◆ Who gets it:</b>
 • <code>-user</code> — Only users (DM)
 • <code>-group</code> — Only groups
 • <code>-all</code> — Users and groups (default)
@@ -135,7 +135,7 @@ func init() {
 • <code>-nouser</code> — Exclude users
 </blockquote>
 <blockquote>
-<b>📋 Options:</b>
+<b>◇ Options:</b>
 • <code>-copy</code> — Send without the forwarded tag (reply mode; used automatically if the message cannot be forwarded)
 • <code>-pin</code> — Pin the message (silent)
 • <code>-pinloud</code> — Pin the message (with notification)
@@ -144,14 +144,14 @@ func init() {
 • <code>-cancel</code> — Cancel the ongoing broadcast
 </blockquote>
 <blockquote>
-<b>📌 Examples:</b>
+<b>◉ Examples:</b>
 /broadcast -user Hello everyone
 /bcast -group -pin [reply to message]
 /gcast -all -copy -limit 50 [reply to message]
 /broadcast -user -delay 2 Important announcement
 /broadcast -cancel
 </blockquote>
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Only the <b>owner</b> can use this command
 • Flags work with one or two dashes (<code>-copy</code> or <code>--copy</code>)
 • Text mode sends plain text. For media or formatting, reply to the message

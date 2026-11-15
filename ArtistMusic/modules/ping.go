@@ -40,14 +40,14 @@ func init() {
 <u>Usage:</u>
 <b>/ping</b> — Get bot status
 
-<b>📊 Information Shown:</b>
+<b>◇ Information Shown:</b>
 • Response latency (ms)
 • Uptime
 • RAM usage
 • CPU usage
 • Disk usage
 
-<b>💡 Use Case:</b>
+<b>◇ Use Case:</b>
 Check if bot is responsive and view system health.`
 }
 
@@ -145,12 +145,7 @@ func pingHandler(c *td.Client, m *td.Message) error {
 			return err
 		}
 
-		_, err = reply.EditMedia(c, &td.InputMessagePhoto{
-			Photo: &td.InputPhoto{
-				Photo: td.InputFileRemote{Id: config.PingImage},
-			},
-			Caption: caption,
-		}, &td.EditMessageMediaOpts{
+		_, err = reply.EditMedia(c, mediaContent(config.PingImage, caption), &td.EditMessageMediaOpts{
 			ReplyMarkup: markup,
 		})
 		return err

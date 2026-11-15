@@ -36,15 +36,15 @@ func init() {
 <u>Usage:</u>
 <b>/stop</b> or <b>/end</b> — Stop playback
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • Stops current track
 • Clears queue
 • Assistant leaves voice chat
 •
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this
 
-<b>⚠️ Note:</b>
+<b>ϟ Note:</b>
 This action cannot be undone. Use <code>/pause</code> for temporary stops.`
 	helpTexts["/stop"] = helpTexts["/end"]
 }
@@ -56,12 +56,6 @@ func stopHandler(c *td.Client, m *td.Message) error {
 	return handleStop(c, m, false)
 }
 
-func cstopHandler(c *td.Client, m *td.Message) error {
-	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) {
-		return nil
-	}
-	return handleStop(c, m, true)
-}
 
 func handleStop(c *td.Client, m *td.Message, cplay bool) error {
 	r, err := getEffectiveRoom(m.ChatID(), cplay)
@@ -95,7 +89,6 @@ func handleStop(c *td.Client, m *td.Message, cplay bool) error {
 		}
 	}
 
-	scheduleOldPlayingMessage(r)
 	core.DropRoom(r.ID)
 	_, rerr := m.ReplyText(
 		c,

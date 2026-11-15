@@ -36,12 +36,3 @@ func GetAdminMode(chatID int64) (AdminMode, error) {
 	return settings.AdminMode, nil
 }
 
-func SetAdminMode(chatID int64, mode AdminMode) error {
-	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
-		if s.AdminMode == mode {
-			return false
-		}
-		s.AdminMode = mode
-		return true
-	})
-}

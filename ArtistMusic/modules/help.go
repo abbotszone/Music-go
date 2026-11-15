@@ -32,7 +32,7 @@ import (
 var helpTexts = map[string]string{}
 
 func init() {
-	helpTexts["/help"] = fmt.Sprintf(`ℹ️ <b>Help Command</b>
+	helpTexts["/help"] = fmt.Sprintf(`◇ <b>Help Command</b>
 <i>Displays general bot help or detailed information about a specific command.</i>
 
 <u>Usage:</u>
@@ -111,24 +111,16 @@ func helpCallbackHandler(c *td.Client, cb *td.UpdateNewCallbackQuery) error {
 	switch parts[1] {
 	case "admin":
 		text = F(chatID, "help_admin")
-	case "auth":
-		text = F(chatID, "help_auth")
 	case "bcast":
 		text = F(chatID, "help_bcast")
 	case "play":
 		text = F(chatID, "help_play")
-	case "sudo":
-		text = F(chatID, "help_sudo")
-	case "restrict":
-		text = F(chatID, "help_restrict")
 	case "thumb":
 		text = F(chatID, "help_thumb")
 	case "start":
 		text = F(chatID, "help_start")
 	case "autoplay":
 		text = F(chatID, "help_autoplay")
-	case "playlist":
-		text = F(chatID, "help_playlist")
 	case "inline":
 		text = F(chatID, "help_inline")
 	case "main":
@@ -175,7 +167,7 @@ func showHelpFor(c *td.Client, m *td.Message, cmd string) error {
 	if helpText == "" {
 		_, err := m.ReplyText(
 			c,
-			"⚠️ <i>No help found for command <code>"+
+			"ϟ <i>No help found for command <code>"+
 				html.EscapeString(cmd)+
 				"</code></i>",
 			nil,
@@ -185,7 +177,7 @@ func showHelpFor(c *td.Client, m *td.Message, cmd string) error {
 
 	_, err := m.ReplyText(
 		c,
-		"📘 <b>Help for</b> <code>"+cmd+"</code>:\n\n"+helpText,
+		"◇ <b>Help for</b> <code>"+cmd+"</code>:\n\n"+helpText,
 		nil,
 	)
 	return err

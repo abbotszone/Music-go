@@ -33,18 +33,4 @@ func IsSudo(id int64) (bool, error) {
 	return contains(state.Sudoers, id), nil
 }
 
-func AddSudo(id int64) error {
-	return modifyBotState(func(s *BotState) bool {
-		var added bool
-		s.Sudoers, added = addUnique(s.Sudoers, id)
-		return added
-	})
-}
 
-func RemoveSudo(id int64) error {
-	return modifyBotState(func(s *BotState) bool {
-		var removed bool
-		s.Sudoers, removed = removeElement(s.Sudoers, id)
-		return removed
-	})
-}

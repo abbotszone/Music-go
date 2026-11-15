@@ -76,7 +76,6 @@ func callDiscardedHandler(chatID int64) {
 
 	logger.Debugf("[callDiscardedHandler] Group call discarded in chat %d", chatID)
 
-	scheduleOldPlayingMessage(r)
 	cid := r.ChatID
 	apClearChat(chatID)
 	core.DropRoom(chatID)
@@ -101,7 +100,6 @@ func streamEndHandler(
 	if !ok {
 		return
 	}
-	scheduleOldPlayingMessage(r)
 
 	c := core.Bot
 	cid := r.ChatID
@@ -124,7 +122,7 @@ func streamEndHandler(
 			}
 			return
 		}
-		t.Requester = "🎵 ᴀᴜᴛᴏᴘʟᴀʏ"
+		t.Requester = "♪ ᴀᴜᴛᴏᴘʟᴀʏ"
 		isAutoplay = true
 	} else if prevTrack != nil && t == prevTrack {
 		wasLooping = true
@@ -164,7 +162,7 @@ func streamEndHandler(
 				if nextT == nil {
 					break
 				}
-				nextT.Requester = "🎵 ᴀᴜᴛᴏᴘʟᴀʏ"
+				nextT.Requester = "♪ ᴀᴜᴛᴏᴘʟᴀʏ"
 				t = nextT
 			} else {
 				break
@@ -274,7 +272,7 @@ func pickAutoplayCandidate(chatID int64, cur *state.Track) *state.Track {
 	}
 
 	apMarkPlayed(chatID, chosen.ID)
-	chosen.Requester = "🎵 ᴀᴜᴛᴏᴘʟᴀʏ"
+	chosen.Requester = "♪ ᴀᴜᴛᴏᴘʟᴀʏ"
 	chosen.IsAutoplay = true
 	logger.Infof("[Autoplay] Successfully picked Golden-Zone song: %q (%s) for chat %d", chosen.Title, chosen.ID, chatID)
 	return chosen

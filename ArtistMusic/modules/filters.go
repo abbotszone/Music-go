@@ -37,15 +37,6 @@ func getCommand(m *td.Message) string {
 	return cmd
 }
 
-func checkSudo(c *td.Client, m *td.Message) bool {
-	if !isOwnerOrSudo(m.SenderID()) {
-		if _, err := m.ReplyText(c, F(m.ChatID(), "only_sudo"), nil); err != nil {
-			logger.Error(err)
-		}
-		return false
-	}
-	return true
-}
 
 func checkOwner(c *td.Client, m *td.Message) bool {
 	if config.OwnerID == 0 || m.SenderID() != config.OwnerID {

@@ -229,12 +229,12 @@ func downloadUpdateHandler(c *td.Client, u *td.UpdateFile) error {
 	return downloads.onFileUpdate(c, u)
 }
 
-// ©️ Copyright Reserved - ArtistMusic
+// © Copyright Reserved - ArtistMusic
 // ===========================================
-// ©️ 2026 ArtistMusic
-// 🔗 GitHub : https://github.com/elevenyts/ArtistMusic
-// 📢 Telegram Channel : https://t.me/Artistbots
-// 💬 Support Group : https://t.me/Artistbots
+// © 2026 ArtistMusic
+// ↗ GitHub : https://github.com/elevenyts/ArtistMusic
+// ))) Telegram Channel : https://t.me/Artistbots
+// ◇ Support Group : https://t.me/Artistbots
 // ===========================================
-// ©️ 2026 ArtistMusic (modifications)
-// ❤️ Love From ArtistMusic
+// © 2026 ArtistMusic (modifications)
+// ♥ Love From ArtistMusic

@@ -34,15 +34,15 @@ func init() {
 <b>/nothumb</b> — Show current status
 <b>/nothumb [enable|disable]</b> — Change setting
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • <b>Disabled (default):</b> Shows track artwork/thumbnail
 • <b>Enabled:</b> Hides artwork, text-only messages
 
-<b>💡 Examples:</b>
+<b>◇ Examples:</b>
 <code>/nothumb enable</code> — Disable thumbnails
 <code>/nothumb disable</code> — Enable thumbnails
 
-<b>⚠️ Note:</b>
+<b>ϟ Note:</b>
 This setting affects all future playback messages in this chat.`
 }
 

@@ -292,89 +292,7 @@ func fetchFromURLs(urls []string, video bool) ([]*state.Track, []string) {
 	return tracks, errs
 }
 
-// AutoplayTracks fetches non-repeating recommended tracks similar to the last played track.
-// It uses multi-tiered recommendations (YouTube mix playlist, related watch-next videos, and search fallback).
-// It verifies candidates against the room's playback history to prevent repeating songs.
-func AutoplayTracks(last *state.Track, limit int, history ...string) ([]*state.Track, error) {
-	if last == nil {
-		return nil, errors.New("cannot resolve autoplay for nil track")
-	}
 
-	ytRaw, ok := GetPlatform(PlatformYouTube)
-	if !ok {
-		return nil, errors.New("youtube platform not registered")
-	}
-	yt := ytRaw.(*YouTubePlatform)
-
-	targetID := last.ID
-	if last.Source != PlatformYouTube || targetID == "" {
-		// Non-YouTube track: resolve equivalent YouTube track first using title
-		tracks, err := yt.VideoSearch(last.Title, true)
-		if err == nil && len(tracks) > 0 {
-			targetID = tracks[0].ID
-		}
-	}
-
-	fetchLimit := limit * 3
-	if fetchLimit < 15 {
-		fetchLimit = 15
-	}
-
-	candidates, err := yt.AutoplayCandidates(targetID, last.Title, fetchLimit)
-	if err != nil || len(candidates) == 0 {
-		return nil, errors.New("failed to fetch autoplay candidates")
-	}
-
-	// Filter candidates against history ring buffer and current track
-	historyMap := make(map[string]bool)
-	for _, h := range history {
-		historyMap[h] = true
-	}
-
-	var filtered []*state.Track
-	for _, t := range candidates {
-		if t == nil || t.ID == "" || t.ID == last.ID {
-			continue
-		}
-		if historyMap["id:"+t.ID] {
-			continue
-		}
-		norm := state.NormalizeTrackTitle(t.Title)
-		if norm != "" && historyMap["title:"+norm] {
-			continue
-		}
-		filtered = append(filtered, t)
-		if limit > 0 && len(filtered) >= limit {
-			break
-		}
-	}
-
-	// If everything was filtered out by strict history, fall back to candidates differing from last.ID
-	if len(filtered) == 0 {
-		for _, t := range candidates {
-			if t != nil && t.ID != "" && t.ID != last.ID {
-				filtered = append(filtered, t)
-				if limit > 0 && len(filtered) >= limit {
-					break
-				}
-			}
-		}
-	}
-
-	return withVideo(filtered, last.Video), nil
-}
-
-// ResolveQuery resolves a plain URL or search query string to track(s),
-// without requiring a Telegram message. Used by features that store a raw
-// query/URL (e.g. playlist management) rather than a live message.
-func ResolveQuery(query string, video bool) ([]*state.Track, error) {
-	if p := findFor(query); p != nil {
-		if got, err := p.Get(query, video); err == nil && len(got) > 0 {
-			return got, nil
-		}
-	}
-	return searchQuery(query, video)
-}
 
 func searchQuery(q string, video bool) ([]*state.Track, error) {
 	if p := findFor(q); p != nil && p.Name() != PlatformYouTube {
@@ -401,7 +319,7 @@ func searchQuery(q string, video bool) ([]*state.Track, error) {
 func fromReply(c *td.Client, m *td.Message) ([]*state.Track, error) {
 	target, isVideo, _ := playableMedia(c, m)
 	if target == nil {
-		return nil, errors.New("⚠️ Reply with a valid media (audio/video)")
+		return nil, errors.New("ϟ Reply with a valid media (audio/video)")
 	}
 
 	tgp, ok := GetPlatform(PlatformTelegram)

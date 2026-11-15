@@ -54,23 +54,23 @@ func init() {
 <b>/play [query/URL]</b> — Search and play a song
 <b>/play [reply to audio/video]</b> — Play replied media
 
-<b>🎵 Supported Sources:</b>
+<b>♪ Supported Sources:</b>
 • YouTube (videos, playlists)
 • Spotify (tracks, albums, playlists)
 • SoundCloud
 • Direct audio/video links
 
-<b>⚙️ Features:</b>
+<b>❖ Features:</b>
 • Queue support - adds to end if already playing
 • Auto-join voice chat if not present
 • Duration limit check
 • Multiple track support (playlists)
 
-<b>💡 Examples:</b>
+<b>◇ Examples:</b>
 <code>/play never gonna give you up</code>
 <code>/play https://youtu.be/dQw4w9WgXcQ</code>
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Bot must have proper permissions in voice chat
 • Tracks exceeding duration limit will be skipped
 • Use <code>/queue</code> to view upcoming tracks
@@ -82,18 +82,18 @@ func init() {
 <b>/fplay [query/URL]</b> — Force play immediately
 <b>/fplay [reply to audio/video]</b> — Force play replied media
 
-<b>🎵 Behavior:</b>
+<b>♪ Behavior:</b>
 • Stops current playback
 • Clears queue
 • Starts playing immediately
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this
 
-<b>💡 Example:</b>
+<b>◇ Example:</b>
 <code>/fplay urgent announcement track</code>
 
-<b>⚠️ Note:</b>
+<b>ϟ Note:</b>
 This command is useful for urgent playback needs but will disrupt the current queue.`
 
 	helpTexts["/vplay"] = `<i>Play video content in voice chat (video mode).</i>
@@ -102,12 +102,12 @@ This command is useful for urgent playback needs but will disrupt the current qu
 <b>/vplay [query/URL]</b> — Play video
 <b>/vplay [reply to video]</b> — Play replied video
 
-<b>📹 Features:</b>
+<b>▷ Features:</b>
 • Full video playback support
 • Audio + Video streaming
 • Same queue system as audio
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Requires video streaming permissions
 • Use <code>/fvplay</code> for force video play`
 
@@ -116,81 +116,38 @@ This command is useful for urgent playback needs but will disrupt the current qu
 <u>Usage:</u>
 <b>/fvplay [query/URL]</b> — Force play video immediately
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Admin/auth only command
 
-<b>💡 Use Case:</b>
+<b>◇ Use Case:</b>
 Immediate video playback when something urgent needs to be shown.`
 
-	helpTexts["/cplay"] = `<i>Play in linked channel's voice chat.</i>
 
-<u>Usage:</u>
-<b>/cplay [query]</b> — Play in linked channel
-
-<b>⚙️ Setup Required:</b>
-First use <code>/setcplay [channel_id]</code>
-
-<b>⚠️ Note:</b>
-All c* commands work the same as regular commands but affect the linked channel.`
-
-	helpTexts["/channelplay"] = `<i>Configure linked channel for channel play mode.</i>
-
-<u>Usage:</u>
-<b>/channelplay [channel_id]</b> — Set linked channel
-
-<b>⚙️ Behavior:</b>
-• Links a channel to current group
-• All <code>c*</code> commands affect linked channel
-• Channel must be accessible by bot
-
-<b>🔒 Restrictions:</b>
-• Only <b>chat admins</b> can configure
-
-<b>💡 Examples:</b>
-<code>/setcplay -1001234567890</code>
-
-<b>⚠️ Notes:</b>
-• Get channel ID using forward + @userinfobot
-• Bot must be admin in linked channel
-• Use <code>/cplay</code> after setup`
-	helpTexts["/setcplay"] = helpTexts["/channelplay"]
 
 	helpTexts["/playforce"] = helpTexts["/fplay"]
-	helpTexts["/fcplay"] = helpTexts["/cfplay"]
-	helpTexts["/cvplay"] = helpTexts["/vcplay"]
 
 	helpTexts["/autoplay"] = `<i>Automatically play recommended songs when the queue ends.</i>
 
 <u>Usage:</u>
 <b>/autoplay</b> — Open the autoplay control panel
 
-<b>⚙️ Behavior:</b>
+<b>❖ Behavior:</b>
 • When enabled, once the queue finishes the bot keeps playing similar recommended tracks from YouTube.
 • Recommendations are based on the last played song and skip tracks already in the queue.
 • Autoplay is tied to the current session and resets once playback stops.
 
-<b>🔒 Restrictions:</b>
+<b>◆ Restrictions:</b>
 • Only <b>chat admins</b> or <b>authorized users</b> can use this`
 }
 
 func playHandler(c *td.Client, m *td.Message) error  { return handlePlay(c, m, &playOpts{}) }
 func fplayHandler(c *td.Client, m *td.Message) error { return handlePlay(c, m, &playOpts{Force: true}) }
-func cfplayHandler(c *td.Client, m *td.Message) error {
-	return handlePlay(c, m, &playOpts{Force: true, CPlay: true})
-}
 func vplayHandler(c *td.Client, m *td.Message) error { return handlePlay(c, m, &playOpts{Video: true}) }
 func fvplayHandler(c *td.Client, m *td.Message) error {
 	return handlePlay(c, m, &playOpts{Force: true, Video: true})
 }
 
-func vcplayHandler(c *td.Client, m *td.Message) error {
-	return handlePlay(c, m, &playOpts{CPlay: true, Video: true})
-}
 
-func fvcplayHandler(c *td.Client, m *td.Message) error {
-	return handlePlay(c, m, &playOpts{Force: true, CPlay: true, Video: true})
-}
-func cplayHandler(c *td.Client, m *td.Message) error { return handlePlay(c, m, &playOpts{CPlay: true}) }
 
 func handlePlay(c *td.Client, m *td.Message, opts *playOpts) error {
 	chatID := m.ChatID()
@@ -709,7 +666,7 @@ func playTrackWithRetry(
 
 		if attempt == playMaxRetries {
 			logger.Error(
-				"❌ Failed to play after " + utils.IntToStr(
+				"✗ Failed to play after " + utils.IntToStr(
 					playMaxRetries,
 				) + " attempts. Error: " + err.Error(),
 			)
@@ -872,17 +829,6 @@ func safeGetTracks(
 		}
 	}()
 
-	if q := strings.TrimSpace(m.Args()); isPlaylistQuery(q) {
-		tracks, err := playlistTracks(q)
-		if err != nil {
-			return nil, errors.New(F(chatID, "playlist_not_found"))
-		}
-		if len(tracks) == 0 {
-			return nil, errors.New(F(chatID, "playlist_songs_empty"))
-		}
-		return tracks, nil
-	}
-
 	return platforms.GetTracks(c, m, video)
 }
 
@@ -1012,7 +958,7 @@ func PickAutoplayTrack(r *core.RoomState, last *state.Track) *state.Track {
 		token := r.AutoplayToken()
 		requester := F(r.ChatID, "autoplay_requester")
 		if requester == "" || strings.HasPrefix(requester, "[") {
-			requester = "🎵 ᴀᴜᴛᴏᴘʟᴀʏ"
+			requester = "♪ ᴀᴜᴛᴏᴘʟᴀʏ"
 		}
 		chosen.MarkAutoplay(requester, token)
 		r.AddPlayed(chosen)

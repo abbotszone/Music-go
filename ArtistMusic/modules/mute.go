@@ -30,13 +30,13 @@ func init() {
 <u>Usage:</u>
 <b>/mute</b> — Mute indefinitely
 
-<b>⚙️ Features:</b>
+<b>❖ Features:</b>
 • Audio continues playing (progress tracked)
 
-<b>💡 Examples:</b>
+<b>◇ Examples:</b>
 <code>/mute</code> — Mute until manual unmute
 
-<b>⚠️ Notes:</b>
+<b>ϟ Notes:</b>
 • Track continues playing in background
 • Use <code>/unmute</code> to restore audio`
 }
@@ -45,9 +45,6 @@ func muteHandler(c *td.Client, m *td.Message) error {
 	return handleMute(c, m, false)
 }
 
-func cmuteHandler(c *td.Client, m *td.Message) error {
-	return handleMute(c, m, true)
-}
 
 func handleMute(c *td.Client, m *td.Message, cplay bool) error {
 	if !isSuperGroup(c, m) || !filterAuthUsers(c, m) || m.Args() != "" {

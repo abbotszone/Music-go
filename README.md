@@ -18,10 +18,8 @@ Stream audio and video from YouTube, Telegram files, direct links and the Artist
 | | |
 | :-- | :-- |
 | 🎵 **Playback** | Audio and video streaming in group voice chats, queue, autoplay |
-| 🎛️ **Control** | Pause, resume, skip, seek, speed, loop, shuffle, jump, move, replay |
-| 📻 **Channel play** | Stream into a linked channel with the `c` commands (`/cplay`) |
-| 📂 **Playlists** | Save and replay your own playlists |
-| 🛡️ **Access** | Sudo users, per-chat auth, blacklists, admin mode, clean mode |
+| 🎛️ **Control** | Pause, resume, skip, stop, seek, loop, replay, mute, unmute |
+| 🖼️ **Thumbnail** | Per-chat toggle for album-art display |
 | 📣 **Broadcast** | Send or forward a message to every served chat and user |
 
 <br/>
@@ -55,7 +53,7 @@ sudo systemctl start artistmusic
 ```
 
 > [!IMPORTANT]
-> Set **`OWNER_ID`** to your own Telegram user ID. It decides who can use owner-only commands such as `/broadcast` and `/addsudo`.
+> Set **`OWNER_ID`** to your own Telegram user ID. It decides who can use owner-only commands such as `/broadcast` and `/restart`.
 
 <br/>
 
@@ -88,17 +86,12 @@ Copy `sample.env` to `.env`. Variables marked ✅ are required.
 
 ## 🎮 Commands
 
-Add `c` in front of a playback command to control channel play, for example `/cpause`.
-
 | Group | Commands |
 | :-- | :-- |
-| **Basic** | `/start` `/help` `/ping` |
-| **Play** | `/play` `/fplay` `/vplay` `/fvplay` `/vcplay` `/fvcplay` `/cplay` `/cfplay` |
-| **Control** | `/pause` `/resume` `/skip` `/askip` `/stop` `/mute` `/unmute` `/replay` `/shuffle` `/loop` `/speed` `/seek` `/seekback` `/jump` `/position` |
-| **Queue** | `/queue` `/remove` `/move` `/clear` |
-| **Playlist** | `/createplaylist` `/deleteplaylist` `/addtoplaylist` `/removefromplaylist` `/playlistinfo` `/myplaylists` |
-| **Chat settings** | `/settings` `/playmode` `/adminmode` `/cleanmode` `/autoplay` `/autoleave` `/nothumb` `/channelplay` `/cmddelete` `/auth` `/delauth` `/authlist` `/reload` `/active` |
-| **Owner / Sudo** | `/broadcast` `/restart` `/logger` `/addsudo` `/delsudo` `/sudoers` `/blockchat` `/unblockchat` `/blockuser` `/unblockuser` `/blocked` |
+| **Basic** | `/start` `/help` `/ping` `/queue` `/loop` `/nothumb` `/autoplay` |
+| **Play** | `/play` `/playforce` (`/fplay`) `/vplay` `/vplayforce` (`/fvplay`) |
+| **Control** | `/stop` (`/end`) `/skip` `/pause` `/resume` `/replay` `/mute` `/unmute` `/seek` `/seekback` |
+| **Owner** | `/broadcast` `/reload` `/restart` |
 
 <br/>
 

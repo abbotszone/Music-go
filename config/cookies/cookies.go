@@ -41,7 +41,7 @@ var (
 )
 
 func init() {
-	logger.Debug("🔹 Initializing cookies...")
+	logger.Debug("◇ Initializing cookies...")
 
 	urls := strings.FieldsSeq(config.CookiesLink)
 	for url := range urls {

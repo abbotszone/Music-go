@@ -116,18 +116,6 @@ func UrlBtn(text, url string) td.InlineKeyboardButton {
 	return styleURLBtn(text, url, randomColour())
 }
 
-func AddMeMarkup(chatID int64) td.ReplyMarkup {
-	return &td.ReplyMarkupInlineKeyboard{
-		Rows: [][]td.InlineKeyboardButton{
-			{
-				UrlBtn(
-					F(chatID, "ADD_ME_BTN"),
-					"https://t.me/"+botUsername()+"?startgroup&admin=invite_users",
-				),
-			},
-		},
-	}
-}
 
 func GetCancelKeyboard(chatID int64) td.ReplyMarkup {
 	return &td.ReplyMarkupInlineKeyboard{
@@ -205,27 +193,27 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 
 	// Main controls
 	rows = append(rows, []td.InlineKeyboardButton{
-		styleBtn("▶️", prefix+"resume", ColourGreen),
-		styleBtn("⏸", prefix+"pause", ColourBlue),
-		styleBtn("🔄", prefix+"replay", ColourBlue),
-		styleBtn("⏭", prefix+"skip", ColourGreen),
-		styleBtn("⏹", prefix+"stop", ColourRed),
+		styleBtn("▶", prefix+"resume", ColourGreen),
+		styleBtn("Ⅱ", prefix+"pause", ColourBlue),
+		styleBtn("◉", prefix+"replay", ColourBlue),
+		styleBtn("»", prefix+"skip", ColourGreen),
+		styleBtn("□", prefix+"stop", ColourRed),
 	})
 
 	// Seek controls
 	rows = append(rows, []td.InlineKeyboardButton{
-		styleBtn("⏪ 15s", prefix+"seekback_15", ColourBlue),
-		styleBtn("15s ⏩", prefix+"seek_15", ColourBlue),
+		styleBtn("« 15s", prefix+"seekback_15", ColourBlue),
+		styleBtn("15s »", prefix+"seek_15", ColourBlue),
 	})
 
 	// Autoplay (ON/OFF) + Close in a single row
-	apText, apColour := "🔁 ᴧᴜᴛσᴘʟᴧʏ : σғғ", ColourRed
+	apText, apColour := "◉ ᴧᴜᴛσᴘʟᴧʏ : σғғ", ColourRed
 	if r.Autoplay() {
-		apText, apColour = "🔁 ᴧᴜᴛσᴘʟᴧʏ : ση", ColourGreen
+		apText, apColour = "◉ ᴧᴜᴛσᴘʟᴧʏ : ση", ColourGreen
 	}
 	rows = append(rows, []td.InlineKeyboardButton{
 		styleBtn(apText, prefix+"autoplay_toggle", apColour),
-		styleBtn("✖️ "+F(chatID, "CLOSE_BTN"), "close", ColourRed),
+		styleBtn("× "+F(chatID, "CLOSE_BTN"), "close", ColourRed),
 	})
 
 	return &td.ReplyMarkupInlineKeyboard{Rows: rows}
@@ -272,21 +260,17 @@ func GetHelpKeyboard(chatID int64) td.ReplyMarkup {
 		Rows: [][]td.InlineKeyboardButton{
 			{
 				DataBtn(F(chatID, "HELP_ADMIN_BTN"), "help:admin"),
-				DataBtn(F(chatID, "HELP_AUTH_BTN"), "help:auth"),
 				DataBtn(F(chatID, "HELP_BCAST_BTN"), "help:bcast"),
 			},
 			{
 				DataBtn(F(chatID, "HELP_PLAY_BTN"), "help:play"),
-				DataBtn(F(chatID, "HELP_SUDO_BTN"), "help:sudo"),
-				DataBtn(F(chatID, "HELP_RESTRICT_BTN"), "help:restrict"),
+				DataBtn(F(chatID, "HELP_THUMB_BTN"), "help:thumb"),
 			},
 			{
-				DataBtn(F(chatID, "HELP_THUMB_BTN"), "help:thumb"),
 				DataBtn(F(chatID, "HELP_START_BTN"), "help:start"),
 				DataBtn(F(chatID, "HELP_AUTOPLAY_BTN"), "help:autoplay"),
 			},
 			{
-				DataBtn(F(chatID, "HELP_PLAYLIST_BTN"), "help:playlist"),
 				DataBtn(F(chatID, "HELP_INLINE_BTN"), "help:inline"),
 			},
 			{
