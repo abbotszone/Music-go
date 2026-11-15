@@ -20,10 +20,13 @@ package platforms
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ArtistMusic/ArtistMusic/logger"
@@ -111,39 +114,156 @@ func GetTracks(c *td.Client, m *td.Message, video bool) ([]*state.Track, error) 
 	return nil, errors.New("no tracks found")
 }
 
+// dlRacer is one way of downloading a track.
+type dlRacer struct {
+	name string
+	run  func(ctx context.Context) (string, error)
+}
+
+var raceSeq uint64
+
 // Download fetches the given track and returns its local file path.
-// It tries every registered platform that can download the track's source,
-// in priority order, and returns the first successful file path.
+//
+// When more than one method can download the track (for a YouTube track:
+// the Artistbots API, yt-dlp with cookies and plain yt-dlp), they all start at
+// the same time. The first one that returns a valid file wins; the others are
+// cancelled and their partial files are deleted. With a single method it simply
+// runs that one.
 func Download(
 	ctx context.Context,
 	track *state.Track,
 	msg *td.Message,
 ) (string, error) {
-	var errs []string
+	if p := findFile(track); p != "" {
+		logger.Debug("Download: cache hit " + p)
+		return p, nil
+	}
 
+	var racers []dlRacer
 	for _, p := range ordered() {
 		if !p.CanDownload(track.Source) {
 			continue
 		}
+		p := p
 
-		logger.Debug("Download attempt: " + string(p.Name()))
-		path, err := p.Download(ctx, track, msg)
-		if err == nil {
-			logger.Info("Download ok via " + string(p.Name()) + " -> " + path)
-			return path, nil
+		if yt, ok := p.(*YtdlpPlatform); ok && yt.isYouTubeURL(track.URL) {
+			if ytdlpCookiesAvailable() {
+				racers = append(racers, dlRacer{
+					name: "yt-dlp+cookies",
+					run: func(c context.Context) (string, error) {
+						return p.Download(withCookieMode(c, cookiesOn), track, msg)
+					},
+				})
+			}
+			racers = append(racers, dlRacer{
+				name: "yt-dlp",
+				run: func(c context.Context) (string, error) {
+					return p.Download(withCookieMode(c, cookiesOff), track, msg)
+				},
+			})
+			continue
 		}
 
+		racers = append(racers, dlRacer{
+			name: string(p.Name()),
+			run: func(c context.Context) (string, error) {
+				return p.Download(c, track, msg)
+			},
+		})
+	}
+
+	switch len(racers) {
+	case 0:
+		return "", errors.New("no downloader for source: " + string(track.Source))
+	case 1:
+		path, err := racers[0].run(ctx)
+		if err == nil {
+			logger.Info("Download ok via " + racers[0].name + " -> " + path)
+			return path, nil
+		}
 		if isDownloadCancelled(err) {
 			return "", err
 		}
-
-		errs = append(errs, string(p.Name())+": "+err.Error())
+		return "", combineErrs("download failed", []string{racers[0].name + ": " + err.Error()})
 	}
 
-	if len(errs) > 0 {
-		return "", combineErrs("download failed", errs)
+	return raceDownload(ctx, track, racers)
+}
+
+func raceDownload(ctx context.Context, track *state.Track, racers []dlRacer) (string, error) {
+	type result struct {
+		idx  int
+		path string
+		err  error
 	}
-	return "", errors.New("no downloader for source: " + string(track.Source))
+
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	seq := atomic.AddUint64(&raceSeq, 1)
+	results := make(chan result, len(racers))
+	dirs := make([]string, len(racers))
+
+	for i, r := range racers {
+		dirs[i] = filepath.Join("downloads", ".race_"+strconv.FormatUint(seq, 10)+"_"+strconv.Itoa(i))
+		go func(i int, r dlRacer) {
+			path, err := r.run(withSlotDir(rctx, dirs[i]))
+			results <- result{idx: i, path: path, err: err}
+		}(i, r)
+	}
+
+	// cleanup deletes the race folders once the remaining racers have stopped.
+	cleanup := func(remaining int, keep int) {
+		go func() {
+			for k := 0; k < remaining; k++ {
+				<-results
+			}
+			for i, d := range dirs {
+				if i != keep {
+					os.RemoveAll(d)
+				}
+			}
+		}()
+	}
+
+	var errs []string
+	for n := 0; n < len(racers); n++ {
+		res := <-results
+
+		if res.err == nil && fileExists(res.path) {
+			cancel() // reject the other methods
+
+			final := res.path
+			moved := filepath.Join("downloads", filepath.Base(res.path))
+			if os.Rename(res.path, moved) == nil {
+				final = moved
+				os.RemoveAll(dirs[res.idx])
+			}
+
+			logger.Info("Download ok via " + racers[res.idx].name + " (first to finish) -> " + final)
+			cleanup(len(racers)-n-1, res.idx)
+			return final, nil
+		}
+
+		if res.err != nil && ctx.Err() != nil {
+			// The caller cancelled the download.
+			cancel()
+			cleanup(len(racers)-n-1, -1)
+			os.RemoveAll(dirs[res.idx])
+			return "", res.err
+		}
+
+		reason := "no file produced"
+		if res.err != nil {
+			reason = res.err.Error()
+		}
+		errs = append(errs, racers[res.idx].name+": "+reason)
+	}
+
+	for _, d := range dirs {
+		os.RemoveAll(d)
+	}
+	return "", combineErrs("download failed", errs)
 }
 
 func fetchFromURLs(urls []string, video bool) ([]*state.Track, []string) {

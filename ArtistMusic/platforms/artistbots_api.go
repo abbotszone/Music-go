@@ -84,7 +84,7 @@ func (a *ArtistbotsApiPlatform) Download(
 	track *state.Track,
 	_ *td.Message,
 ) (string, error) {
-	if p := findFile(track); p != "" {
+	if p := findFileIn(slotDir(ctx), track); p != "" {
 		logger.Debug("ArtistbotsApi: cache hit " + p)
 		return p, nil
 	}
@@ -101,7 +101,7 @@ func (a *ArtistbotsApiPlatform) Download(
 	dctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	path := getPath(track, ext)
+	path := getPathIn(slotDir(ctx), track, ext)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", errors.New("artistbotsapi: cannot create downloads dir")
 	}

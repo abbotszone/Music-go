@@ -59,6 +59,10 @@ func isDownloadCancelled(err error) bool {
 }
 
 func getPath(track *state.Track, ext string) string {
+	return getPathIn("downloads", track, ext)
+}
+
+func getPathIn(dir string, track *state.Track, ext string) string {
 	if ext != "" && !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
@@ -66,7 +70,7 @@ func getPath(track *state.Track, ext string) string {
 	if track.Video {
 		t = "video"
 	}
-	return filepath.Join("downloads", t+"_"+track.ID+ext)
+	return filepath.Join(dir, t+"_"+track.ID+ext)
 }
 
 func fileExists(path string) bool {
@@ -79,11 +83,15 @@ func fileExists(path string) bool {
 }
 
 func findFile(track *state.Track) string {
+	return findFileIn("downloads", track)
+}
+
+func findFileIn(dir string, track *state.Track) string {
 	t := "audio"
 	if track.Video {
 		t = "video"
 	}
-	files, err := filepath.Glob(filepath.Join("downloads", t+"_"+track.ID+"*"))
+	files, err := filepath.Glob(filepath.Join(dir, t+"_"+track.ID+"*"))
 	if err != nil {
 		return ""
 	}
@@ -96,17 +104,63 @@ func findFile(track *state.Track) string {
 }
 
 func findAndRemove(track *state.Track) {
+	findAndRemoveIn("downloads", track)
+}
+
+func findAndRemoveIn(dir string, track *state.Track) {
 	t := "audio"
 	if track.Video {
 		t = "video"
 	}
-	files, err := filepath.Glob(filepath.Join("downloads", t+"_"+track.ID+"*"))
+	files, err := filepath.Glob(filepath.Join(dir, t+"_"+track.ID+"*"))
 	if err != nil {
 		return
 	}
 	for _, f := range files {
 		os.Remove(f)
 	}
+}
+
+// ---- per-download options carried in the context (used by the download race) ----
+
+type dlCtxKey int
+
+const (
+	dlSlotDirKey dlCtxKey = iota
+	dlCookieModeKey
+)
+
+// cookieMode tells yt-dlp whether to use the YouTube cookie files.
+type cookieMode int
+
+const (
+	cookiesAuto cookieMode = iota // use cookies if any exist (default)
+	cookiesOn
+	cookiesOff
+)
+
+// withSlotDir makes a download write into its own folder, so parallel
+// downloads of the same track never touch each other's files.
+func withSlotDir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, dlSlotDirKey, dir)
+}
+
+func slotDir(ctx context.Context) string {
+	if d, ok := ctx.Value(dlSlotDirKey).(string); ok && d != "" {
+		return d
+	}
+	return "downloads"
+}
+
+func withCookieMode(ctx context.Context, m cookieMode) context.Context {
+	return context.WithValue(ctx, dlCookieModeKey, m)
+}
+
+func cookieModeOf(ctx context.Context) cookieMode {
+	if m, ok := ctx.Value(dlCookieModeKey).(cookieMode); ok {
+		return m
+	}
+	return cookiesAuto
 }
 
 func sanitizeAPIError(err error, apiKey string) error {

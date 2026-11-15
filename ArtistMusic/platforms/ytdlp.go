@@ -145,7 +145,7 @@ func (y *YtdlpPlatform) Download(
 	track *state.Track,
 	_ *td.Message,
 ) (string, error) {
-	if f := findFile(track); f != "" {
+	if f := findFileIn(slotDir(ctx), track); f != "" {
 		logger.Debug("YtDlp: cache hit " + f)
 		return f, nil
 	}
@@ -163,7 +163,7 @@ func (y *YtdlpPlatform) Download(
 		"--ignore-errors",
 		"--no-check-certificate",
 		"-q",
-		"-o", getPath(track, ".%(ext)s"),
+		"-o", getPathIn(slotDir(ctx), track, ".%(ext)s"),
 	}
 
 	if track.Video {
@@ -178,7 +178,7 @@ func (y *YtdlpPlatform) Download(
 		)
 	}
 
-	if y.isYouTubeURL(track.URL) {
+	if y.isYouTubeURL(track.URL) && cookieModeOf(ctx) != cookiesOff {
 		if cookieFile, err := cookies.GetRandomCookieFile(); err == nil && cookieFile != "" {
 			args = append(args, "--cookies", cookieFile)
 		}
@@ -192,7 +192,7 @@ func (y *YtdlpPlatform) Download(
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		findAndRemove(track)
+		findAndRemoveIn(slotDir(ctx), track)
 		if isDownloadCancelled(err) {
 			return "", err
 		}
@@ -202,13 +202,19 @@ func (y *YtdlpPlatform) Download(
 		)
 	}
 
-	p := findFile(track)
+	p := findFileIn(slotDir(ctx), track)
 	if p == "" {
 		return "", errors.New("yt-dlp produced no output file")
 	}
 
 	logger.Infof("YtDlp: downloaded %s", p)
 	return p, nil
+}
+
+// ytdlpCookiesAvailable reports whether at least one cookie file is configured.
+func ytdlpCookiesAvailable() bool {
+	f, err := cookies.GetRandomCookieFile()
+	return err == nil && f != ""
 }
 
 func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
