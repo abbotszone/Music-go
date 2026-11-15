@@ -13,10 +13,15 @@ RUN apt-get update && \
 COPY . .
 RUN go mod tidy
 
-RUN mkdir -p /build/config/cookies && \
-    chmod +x scripts/install.sh && \
-    ./scripts/install.sh -n -t --quiet --skip-summary && \
-    CGO_ENABLED=1 go build -v -trimpath -ldflags="-w -s" -o app .
+RUN mkdir -p /build/config/cookies && chmod +x scripts/install.sh
+
+# Not quiet on purpose: if a download fails, the reason shows in the build log.
+RUN ./scripts/install.sh -n -t --skip-summary \
+    || (echo "=== install.sh failed; log follows ===" && cat /tmp/install_*.log; exit 1)
+
+RUN ls -la /build/libntgcalls* /build/libtdjson* /build/internal/artistcalls/ntgcalls.h
+
+RUN CGO_ENABLED=1 go build -v -trimpath -ldflags="-w -s" -o app .
 
 
 FROM debian:bookworm-slim

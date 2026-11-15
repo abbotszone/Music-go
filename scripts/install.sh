@@ -336,7 +336,7 @@ download_file() {
 
     while [[ $retry_count -lt $max_retries ]]; do
         case "$DOWNLOAD_TOOL" in
-            curl) run_cmd_arr "Downloading $url" curl -sSL -o "$output" "$url" && return 0 ;;
+            curl) run_cmd_arr "Downloading $url" curl -fsSL -o "$output" "$url" && return 0 ;;
             wget) run_cmd_arr "Downloading $url" wget -q -O "$output" "$url"   && return 0 ;;
             *)    return 1 ;;
         esac
