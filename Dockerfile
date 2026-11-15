@@ -1,61 +1,27 @@
-FROM golang:1.26.2-bookworm AS builder
+# ==========================================================
+# Copyright (c) 2026 ArtistBots
+# All Rights Reserved.
+#
+# Project      : ArtistBots API Telegram Music Bot
+# Powered By   : Artist
+# Type         : API Based Telegram Music Bot
+#
+# Bot          : @ArtistApibot
+# Channel      : https://t.me/artistbots
+# GitHub       : https://github.com/elevenyts/ArtistMusic
+#
+# Unauthorized copying, modification, or redistribution
+# of this source code without permission is prohibited.
+# ==========================================================
 
-WORKDIR /build
-
-# hadolint ignore=DL3015
-RUN apt-get update && \
-    apt-get install -y \
-        unzip \
-        curl \
-        zlib1g-dev && \
-    rm -rf /var/lib/apt/lists/*
-
+FROM golang:1.22-bookworm AS build
+WORKDIR /src
 COPY . .
-RUN go mod tidy
+RUN go mod tidy && CGO_ENABLED=0 go build -o /artistmusic .
 
-RUN mkdir -p /build/config/cookies && \
-    chmod +x scripts/install.sh && \
-    ./scripts/install.sh -n -t --quiet --skip-summary && \
-    CGO_ENABLED=1 go build -v -trimpath -ldflags="-w -s" -o app ./cmd/app/
-
-
-FROM debian:bookworm-slim
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ffmpeg \
-        curl \
-        unzip \
-        ca-certificates \
-        libssl3 \
-        zlib1g && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /etc/ssl/certs /etc/ssl/certs
-
-RUN curl -fL \
-      https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
-      -o /usr/local/bin/yt-dlp && \
-    chmod 0755 /usr/local/bin/yt-dlp && \
-    curl -fsSL https://deno.land/install.sh -o /tmp/deno-install.sh && \
-    DENO_INSTALL=/usr/local sh /tmp/deno-install.sh -y --no-modify-path && \
-    chmod 0755 /usr/local/bin/deno && \
-    rm -f /tmp/deno-install.sh
-
-ENV LD_LIBRARY_PATH=/app:$LD_LIBRARY_PATH
-ENV TDJSON_PATH=/app/libtdjson.so.1.8.66
-
-RUN useradd -r -u 10001 appuser && \
-    mkdir -p /app && \
-    chown -R appuser:appuser /app
-
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && pip install --no-cache-dir yt-dlp && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-COPY --from=builder /build/app /app/app
-COPY --from=builder /build/libtdjson.so* /app/
-COPY --from=builder /build/config/cookies /app/config/cookies
-RUN chmod 0755 /app/libtdjson.so* && chown -R appuser:appuser /app
-
-USER appuser
-
-ENTRYPOINT ["/app/app"]
+COPY --from=build /artistmusic /app/artistmusic
+CMD ["/app/artistmusic"]
