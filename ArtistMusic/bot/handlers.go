@@ -26,7 +26,6 @@ import (
 
 	"github.com/elevenyts/ArtistMusic/ArtistMusic/config"
 	"github.com/elevenyts/ArtistMusic/ArtistMusic/platforms"
-	"github.com/elevenyts/ArtistMusic/ArtistMusic/queue"
 )
 
 func (b *Bot) register() {
