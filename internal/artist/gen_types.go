@@ -9652,6 +9652,12 @@ func UnmarshalWithClient(data []byte) (TlObject, int, string, error) {
 			return nil, 0, "", err
 		}
 		return &obj, typeObj.ClientId, typeObj.Extra, nil
+	case "ok":
+		var obj Ok
+		if err := json.Unmarshal(data, &obj); err != nil {
+			return nil, 0, "", err
+		}
+		return &obj, typeObj.ClientId, typeObj.Extra, nil
 	case "error":
 		var obj Error
 		if err := json.Unmarshal(data, &obj); err != nil {
@@ -10801,4 +10807,23 @@ func UnmarshalWithClient(data []byte) (TlObject, int, string, error) {
 	default:
 		return nil, 0, "", fmt.Errorf("unknown type: %s", typeObj.Type)
 	}
+}
+
+// Ok An object of this type is returned on a successful function call for certain functions
+type Ok struct {
+}
+
+func (t Ok) GetType() string {
+	return "ok"
+}
+
+func (t Ok) MarshalJSON() ([]byte, error) {
+	type Alias Ok
+	return json.Marshal(&struct {
+		TypeStr string `json:"@type"`
+		*Alias
+	}{
+		TypeStr: "ok",
+		Alias:   (*Alias)(&t),
+	})
 }
