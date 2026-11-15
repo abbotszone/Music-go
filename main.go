@@ -61,6 +61,11 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
+	// Start the health-check server first: hosts (Render/Koyeb/etc.) kill and
+	// restart the container if the port is not open soon after boot, which
+	// showed up as "Bot started" being sent again and again.
+	startHTTPServer()
+
 	if err := checkDependencies(); err != nil {
 		logger.Fatalf("dependency check failed: %v", err)
 	}
@@ -96,8 +101,6 @@ func main() {
 	}
 
 	bot.Init(voice.Bot, voice.Assistants)
-
-	startHTTPServer()
 
 	voice.Bot.Idle()
 }

@@ -68,6 +68,7 @@ func Init() (func(), error) {
 
 	logger.Info("Starting assistant clients...")
 	if err := initAssistants(); err != nil {
+		reportInitError(fmt.Errorf("assistants initialization: %w", err))
 		return nil, fmt.Errorf("assistants initialization: %w", err)
 	}
 
@@ -501,4 +502,17 @@ func (m *AssistantManager) ForChat(chatID int64) (*Assistant, error) {
 	}
 
 	return m.Get(idx)
+}
+
+// reportInitError tells the logger chat why startup failed, so a crash loop
+// is visible in Telegram and not only in the host's logs.
+func reportInitError(err error) {
+	if Bot == nil || config.LoggerID == 0 {
+		return
+	}
+	_, _ = Bot.SendTextMessage(
+		config.LoggerID,
+		"<b>Startup failed:</b>\n<pre>"+html.EscapeString(err.Error())+"</pre>",
+		&td.SendTextMessageOpts{ParseMode: "HTML"},
+	)
 }
