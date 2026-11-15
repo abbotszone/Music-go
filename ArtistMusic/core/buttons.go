@@ -187,23 +187,23 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 
 	if !queued {
 		rows = append(rows, []td.InlineKeyboardButton{
-			styleBtn(progress, "progress", ColourBlue),
+			DataBtn(progress, "progress"),
 		})
 	}
 
-	// Main controls
+	// Main controls (random colours, re-rolled on every refresh)
 	rows = append(rows, []td.InlineKeyboardButton{
-		styleBtn("▶", prefix+"resume", ColourGreen),
-		styleBtn("Ⅱ", prefix+"pause", ColourBlue),
-		styleBtn("◉", prefix+"replay", ColourBlue),
-		styleBtn("»", prefix+"skip", ColourGreen),
-		styleBtn("□", prefix+"stop", ColourRed),
+		DataBtn("▶️", prefix+"resume"),
+		DataBtn("⏸", prefix+"pause"),
+		DataBtn("🔁", prefix+"replay"),
+		DataBtn("⏭", prefix+"skip"),
+		DataBtn("⏹", prefix+"stop"),
 	})
 
 	// Seek controls
 	rows = append(rows, []td.InlineKeyboardButton{
-		styleBtn("« 15s", prefix+"seekback_15", ColourBlue),
-		styleBtn("15s »", prefix+"seek_15", ColourBlue),
+		DataBtn("« 15s", prefix+"seekback_15"),
+		DataBtn("15s »", prefix+"seek_15"),
 	})
 
 	// Autoplay (ON/OFF) + Close in a single row
@@ -213,7 +213,7 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 	}
 	rows = append(rows, []td.InlineKeyboardButton{
 		styleBtn(apText, prefix+"autoplay_toggle", apColour),
-		styleBtn("× "+F(chatID, "CLOSE_BTN"), "close", ColourRed),
+		DataBtn("× "+F(chatID, "CLOSE_BTN"), "close"),
 	})
 
 	return &td.ReplyMarkupInlineKeyboard{Rows: rows}

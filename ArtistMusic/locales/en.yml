@@ -625,12 +625,12 @@ play_single_track_too_long: |
 play_download_failed: "✗ ᴅσᴡηʟσᴧᴅ ғᴧɪʟєᴅ. ᴘʟєᴧsє ᴛʀʏ ᴧɢᴧɪη."
 
 play_added_to_queue_single: |
-  <blockquote><b>✧ ɪηᴄσᴍɪηɢ ᴛʀᴧᴄᴋ ᴅєᴛєᴄᴛєᴅ : #{index}</b></blockquote>
-  <blockquote expandable><b>✧ ᴍєʟσᴅʏ :</b> <a href="{url}">{title}</a>
-  <b>✧ ʟєηɢᴛʜ :</b> {duration}
-  <b>✧ ʀєǫᴜєsᴛєʀ :</b> {by}
+  ➲ 𝗔𝗗𝗗𝗘𝗗  𝗧𝗢  𝗤𝗨𝗘𝗨𝗘  #{index}
 
-  ✧ sᴛᴧηᴅʙʏ, ʏσᴜʀ sєssɪση ʙєɢɪηs sʜσʀᴛʟʏ</blockquote>
+  🎧  <a href="{url}">{title}</a>
+  🕔  {duration}  |  👤  {by}
+
+  ❤️  ᴘσᴡєʀєᴅ ʙʏ  <a href="https://t.me/Artistbots">˹ ᴀʀᴛɪsᴛ ˼</a>
 
 play_multiple_tracks_too_long_header: "<b>ϟ {count} ᴛʀᴧᴄᴋs ᴡєʀє sᴋɪᴘᴘєᴅ (ᴍᴧx ᴅᴜʀᴧᴛɪση {limit_mins} ᴍɪηs):</b>"
 
@@ -1054,10 +1054,12 @@ download_progress: |
 stream_play_fail: "✗ ғᴧɪʟєᴅ ᴛσ ᴘʟᴧʏ ᴛʜє sσηɢ."
 
 stream_now_playing: |
-  <blockquote><b>✧ ᴘʟᴧʏʙᴧᴄᴋ ᴧᴄᴛɪᴠᴧᴛєᴅ. | єηᴊσʏ ᴛʜє ᴍᴜsɪᴄ |</b></blockquote>
-  <blockquote expandable>▫ <b>ᴍєʟσᴅʏ :</b> <a href="{url}">{title}</a>
-  ▫ <b>ʟєηɢᴛʜ :</b> {duration}
-  ▫ <b>ʀєǫᴜєsᴛєʀ :</b> {by}</blockquote>
+  ➲ 𝗡𝗢𝗪  𝗦𝗧𝗥𝗘𝗔𝗠𝗜𝗡𝗚
+
+  🎧  <a href="{url}">{title}</a>
+  🕔  {duration}  |  👤  {by}
+
+  ❤️  ᴘσᴡєʀєᴅ ʙʏ  <a href="https://t.me/Artistbots">˹ ᴀʀᴛɪsᴛ ˼</a>
 
 # ★ Sudo / Owner Join Messages
 sudo_join_owner: "★ {user} — σᴡηєʀ σғ {bot} — ᴊᴜsᴛ єηᴛєʀєᴅ ᴛʜє ᴄʜᴧᴛ."
