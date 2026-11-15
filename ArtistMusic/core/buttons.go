@@ -195,39 +195,37 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 		duration,
 	)
 
-	rows := make([][]td.InlineKeyboardButton, 0, 4)
+	rows := make([][]td.InlineKeyboardButton, 0, 5)
 
 	if !queued {
 		rows = append(rows, []td.InlineKeyboardButton{
-			DataBtn(progress, "progress"),
+			styleBtn(progress, "progress", ColourBlue),
 		})
 	}
 
+	// Main controls
 	rows = append(rows, []td.InlineKeyboardButton{
-		DataBtn("▷", prefix+"resume"),
-		DataBtn("II", prefix+"pause"),
-		DataBtn("⟳", prefix+"replay"),
-		DataBtn("‣‣I", prefix+"skip"),
-		DataBtn("▢", prefix+"stop"),
+		styleBtn("▶️", prefix+"resume", ColourGreen),
+		styleBtn("⏸", prefix+"pause", ColourBlue),
+		styleBtn("🔄", prefix+"replay", ColourBlue),
+		styleBtn("⏭", prefix+"skip", ColourGreen),
+		styleBtn("⏹", prefix+"stop", ColourRed),
 	})
 
+	// Seek controls
 	rows = append(rows, []td.InlineKeyboardButton{
-		DataBtn("-𝟣𝟧ˢ", prefix+"seekback_15"),
-		DataBtn("𝟣𝟧ˢ+", prefix+"seek_15"),
+		styleBtn("⏪ 15s", prefix+"seekback_15", ColourBlue),
+		styleBtn("15s ⏩", prefix+"seek_15", ColourBlue),
 	})
 
-	autoplayState := "disabled"
+	// Autoplay (ON/OFF) + Close in a single row
+	apText, apColour := "🔁 ᴧᴜᴛσᴘʟᴧʏ : σғғ", ColourRed
 	if r.Autoplay() {
-		autoplayState = "enabled"
+		apText, apColour = "🔁 ᴧᴜᴛσᴘʟᴧʏ : ση", ColourGreen
 	}
 	rows = append(rows, []td.InlineKeyboardButton{
-		DataBtn(F(chatID, "autoplay_btn", locales.Arg{
-			"state": F(chatID, autoplayState),
-		}), prefix+"autoplay_toggle"),
-	})
-
-	rows = append(rows, []td.InlineKeyboardButton{
-		DataBtn(F(chatID, "CLOSE_BTN"), "close"),
+		styleBtn(apText, prefix+"autoplay_toggle", apColour),
+		styleBtn("✖️ "+F(chatID, "CLOSE_BTN"), "close", ColourRed),
 	})
 
 	return &td.ReplyMarkupInlineKeyboard{Rows: rows}

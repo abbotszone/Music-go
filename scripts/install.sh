@@ -764,7 +764,9 @@ install_ntgcalls() {
         mkdir -p tmp_ntg
         if run_cmd_arr "Extracting ntgcalls" unzip -qo ntgcalls.zip -d tmp_ntg; then
             mkdir -p ArtistCalls
-            cp tmp_ntg/include/ntgcalls.h ArtistCalls/
+            cp tmp_ntg/include/*.h ArtistCalls/
+            # main.go (cgo -I../../) also needs glibc_compatibility.h & co. at repo root
+            cp tmp_ntg/include/*.h ./
             local lib_file
             lib_file=$(find tmp_ntg/lib -type f | head -n1)
             if [[ -n "$lib_file" ]]; then
