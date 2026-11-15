@@ -19,10 +19,137 @@ package utils
 
 import (
 	"slices"
+	"sync"
 	"time"
 
 	td "github.com/ArtistMusic/Artist"
 )
+
+// ───────────── cache ─────────────
+
+const NoExpiry = time.Duration(-1)
+
+type CacheItem[V any] struct {
+	Value      V
+	Expiration time.Time
+}
+
+func (i CacheItem[V]) Expired() bool {
+	return !i.Expiration.IsZero() && time.Now().After(i.Expiration)
+}
+
+type Cache[K comparable, V any] struct {
+	mu         sync.RWMutex
+	items      map[K]CacheItem[V]
+	defaultTTL time.Duration
+}
+
+func NewCache[K comparable, V any](defaultTTL time.Duration) *Cache[K, V] {
+	return &Cache[K, V]{
+		items:      make(map[K]CacheItem[V]),
+		defaultTTL: defaultTTL,
+	}
+}
+
+func (c *Cache[K, V]) Set(key K, value V) {
+	var exp time.Time
+
+	if c.defaultTTL > 0 {
+		exp = time.Now().Add(c.defaultTTL)
+	}
+
+	c.mu.Lock()
+	c.items[key] = CacheItem[V]{
+		Value:      value,
+		Expiration: exp,
+	}
+	c.mu.Unlock()
+}
+
+func (c *Cache[K, V]) Get(key K) (V, bool) {
+	c.mu.RLock()
+	item, ok := c.items[key]
+	c.mu.RUnlock()
+
+	if !ok {
+		var zero V
+		return zero, false
+	}
+
+	if item.Expired() {
+		c.mu.Lock()
+		delete(c.items, key)
+		c.mu.Unlock()
+
+		var zero V
+		return zero, false
+	}
+
+	return item.Value, true
+}
+
+func (c *Cache[K, V]) Delete(key K) {
+	c.mu.Lock()
+	delete(c.items, key)
+	c.mu.Unlock()
+}
+
+func (c *Cache[K, V]) LoadAndDelete(key K) (V, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	item, ok := c.items[key]
+	if !ok {
+		var zero V
+		return zero, false
+	}
+
+	delete(c.items, key)
+
+	if item.Expired() {
+		var zero V
+		return zero, false
+	}
+
+	return item.Value, true
+}
+
+// ───────────── flood_control ─────────────
+
+var (
+	floodMap = make(map[string]time.Time)
+	floodMu  sync.RWMutex
+)
+
+// GetFlood returns remaining cooldown for a key.
+func GetFlood(key string) time.Duration {
+	floodMu.RLock()
+	t, ok := floodMap[key]
+	floodMu.RUnlock()
+
+	if !ok {
+		return 0
+	}
+
+	remaining := time.Until(t)
+
+	if remaining <= 0 {
+		floodMu.Lock()
+		delete(floodMap, key)
+		floodMu.Unlock()
+	}
+
+	return remaining
+}
+
+// SetFlood sets cooldown duration for a key.
+func SetFlood(key string, duration time.Duration) {
+	floodMu.Lock()
+	floodMap[key] = time.Now().Add(duration)
+	floodMu.Unlock()
+}
+
+// ───────────── admins ─────────────
 
 var (
 	adminCache = NewCache[int64, []int64](24 * time.Hour)
@@ -51,7 +178,6 @@ func IsChatAdmin(c *td.Client, chatID, userID int64) (bool, error) {
 func RefreshChatAdmin(c *td.Client, chatID int64) ([]int64, error) {
 	return fetchAdmins(c, chatID)
 }
-
 
 // AddChatAdmin adds a user to the cached admin list of a chat.
 // If the chat is not cached yet, its admin data is fetched first.

@@ -28,15 +28,16 @@ import (
 	"strings"
 	"time"
 
+	"ArtistMusic/ArtistMusic/database"
 	"ArtistMusic/ArtistMusic/logger"
-
+	"ArtistMusic/ArtistUbot"
+	"ArtistMusic/config"
 	td "github.com/ArtistMusic/Artist"
 	gotdlogger "github.com/ArtistMusic/Artist/logger"
 	"github.com/amarnathcjd/gogram/telegram"
-
-	"ArtistMusic/config"
-	"ArtistMusic/ArtistUbot"
 )
+
+// ───────────── clients ─────────────
 
 var (
 	Assistants *AssistantManager
@@ -382,4 +383,78 @@ func decodeTelethonSessionString(
 		Hostname: ipAddress + ":" + fmt.Sprint(port),
 		Key:      authKey[:],
 	}, nil
+}
+
+// ───────────── assistant ─────────────
+
+type Assistant struct {
+	Index  int
+	Client *telegram.Client
+	Self   *telegram.UserObj
+	Ntg    *artistubot.Context
+}
+
+type AssistantManager struct {
+	list []*Assistant
+}
+
+func (m *AssistantManager) Count() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.list)
+}
+
+func (m *AssistantManager) Get(idx int) (*Assistant, error) {
+	if m == nil {
+		return nil, fmt.Errorf("assistant manager not initialized")
+	}
+	if idx < 1 || idx > len(m.list) {
+		return nil, fmt.Errorf("assistant index out of range: %d", idx)
+	}
+	return m.list[idx-1], nil
+}
+
+func (m *AssistantManager) First() (*Assistant, error) {
+	return m.Get(1)
+}
+
+func (m *AssistantManager) ForEach(fn func(*Assistant)) {
+	if m == nil {
+		return
+	}
+	for _, a := range m.list {
+		fn(a)
+	}
+}
+
+func (m *AssistantManager) WithAssistant(chatID int64, fn func(*Assistant)) {
+	if m == nil {
+		return
+	}
+
+	ass, err := m.ForChat(chatID)
+	if err != nil {
+		logger.Errorf(
+			"Failed to get assistant for chat %d, Error: %v",
+			chatID,
+			err,
+		)
+		return
+	}
+
+	fn(ass)
+}
+
+func (m *AssistantManager) ForChat(chatID int64) (*Assistant, error) {
+	if m == nil || len(m.list) == 0 {
+		return nil, fmt.Errorf("no assistants available")
+	}
+
+	idx, err := database.GetAssistant(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.Get(idx)
 }

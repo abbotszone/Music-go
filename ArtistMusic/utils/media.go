@@ -20,13 +20,18 @@ package utils
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
+	"ArtistMusic/ArtistMusic/logger"
 	td "github.com/ArtistMusic/Artist"
+	"resty.dev/v3"
 )
+
+// ───────────── get_duration ─────────────
 
 func GetDurationByFFProbe(filePath string) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -95,4 +100,69 @@ func GetDurationByFFProbeSafe(fileName string) int {
 		return 0
 	}
 	return dur
+}
+
+// ───────────── get_progress ─────────────
+
+var progressBarCache = [9]string{
+	"◉———————",
+	"—◉——————",
+	"——◉—————",
+	"———◉————",
+	"————◉———",
+	"—————◉——",
+	"——————◉—",
+	"———————◉",
+	"————————◉",
+}
+
+func GetProgressBar(playedSec, durationSec int) string {
+	if durationSec <= 0 || playedSec <= 0 {
+		return progressBarCache[0]
+	}
+
+	if playedSec >= durationSec {
+		return progressBarCache[8]
+	}
+
+	index := min((playedSec*9)/durationSec, 8)
+
+	return progressBarCache[index]
+}
+
+// ───────────── batbin ─────────────
+
+const batbinBaseURL = "https://batbin.me/"
+
+var httpClient = resty.New().SetTimeout(10 * time.Second)
+
+type batbinResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+func CreatePaste(content string) (string, error) {
+	var result batbinResponse
+
+	resp, err := httpClient.R().
+		SetBody(content).
+		SetResult(&result).
+		Post(batbinBaseURL + "api/v2/paste")
+	if err != nil {
+		logger.Error("batbin request error: " + err.Error())
+		return "", err
+	}
+
+	if resp.StatusCode() != 200 {
+		logger.Error("batbin bad response: " + resp.String())
+		return "", fmt.Errorf("batbin returned status %d", resp.StatusCode())
+	}
+
+	if !result.Success {
+		err := fmt.Errorf("batbin paste failed")
+		logger.Error(err.Error())
+		return "", err
+	}
+
+	return batbinBaseURL + result.Message, nil
 }

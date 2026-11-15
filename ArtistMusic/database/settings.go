@@ -23,9 +23,199 @@ import (
 	"sync"
 	"time"
 
+	"ArtistMusic/config"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
+
+// ───────────── chat_settings ─────────────
+
+type ChatSettings struct {
+	ChatID                int64     `bson:"_id"`
+	ChannelPlayID         int64     `bson:"cplay_id"`
+	AuthUsers             []int64   `bson:"auth_users"`
+	AdminMode             AdminMode `bson:"admin_mode,omitempty"`
+	Language              string    `bson:"language"`
+	AssistantIndex        int       `bson:"ass_index,omitempty"`
+	ThumbnailsDisabled    bool      `bson:"no_thumb"`
+	PlayModeAdminsOnly    bool      `bson:"play_mode"`
+	CommandDelete         bool      `bson:"cmd_delete"`
+	CleanMode             bool      `bson:"clean_mode"`
+	CleanModeDurationMins int       `bson:"clean_mode_duration_mins"`
+	Autoplay              bool      `bson:"autoplay"`
+}
+
+func defaultChatSettings(chatID int64) *ChatSettings {
+	return &ChatSettings{
+		ChatID:                chatID,
+		AuthUsers:             []int64{},
+		CleanModeDurationMins: 15,
+	}
+}
+
+func getChatSettings(chatID int64) (*ChatSettings, error) {
+	if settings, found := chatSettingsCache.Get(chatID); found {
+		return settings, nil
+	}
+
+	ctx, cancel := ctx()
+	defer cancel()
+
+	var settings ChatSettings
+	err := chatSettingsColl.FindOne(ctx, bson.M{"_id": chatID}).
+		Decode(&settings)
+
+	if err == mongo.ErrNoDocuments {
+		def := defaultChatSettings(chatID)
+		chatSettingsCache.Set(chatID, def)
+		return def, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get chat settings for %d: %w",
+			chatID,
+			err,
+		)
+	}
+
+	chatSettingsCache.Set(chatID, &settings)
+	return &settings, nil
+}
+
+func updateChatSettings(settings *ChatSettings) error {
+	ctx, cancel := ctx()
+	defer cancel()
+
+	_, err := chatSettingsColl.UpdateOne(
+		ctx,
+		bson.M{"_id": settings.ChatID},
+		bson.M{"$set": settings},
+		upsertOpt,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"failed to update chat settings for %d: %w",
+			settings.ChatID,
+			err,
+		)
+	}
+
+	chatSettingsCache.Set(settings.ChatID, settings)
+	return nil
+}
+
+func modifyChatSettings(chatID int64, fn func(*ChatSettings) bool) error {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return err
+	}
+
+	if fn(settings) {
+		return updateChatSettings(settings)
+	}
+
+	return nil
+}
+
+// Autoplay reports whether autoplay is persistently enabled for the chat.
+func Autoplay(chatID int64) (bool, error) {
+	s, err := getChatSettings(chatID)
+	if err != nil {
+		return false, err
+	}
+	return s.Autoplay, nil
+}
+
+// SetAutoplay updates the persistent autoplay setting for the chat.
+func SetAutoplay(chatID int64, enabled bool) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.Autoplay == enabled {
+			return false
+		}
+		s.Autoplay = enabled
+		return true
+	})
+}
+
+// ───────────── language ─────────────
+
+func Language(chatID int64) (string, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return config.DefaultLang, err
+	}
+	if settings.Language == "" {
+		return config.DefaultLang, nil
+	}
+	return settings.Language, nil
+}
+
+// ───────────── play_mode ─────────────
+
+func PlayModeAdminsOnly(chatID int64) (bool, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return false, err
+	}
+	return settings.PlayModeAdminsOnly, nil
+}
+
+// ───────────── thumbnail ─────────────
+
+// ThumbnailsDisabled returns whether thumbnails are disabled for the chat.
+// Returns false by default (thumbnails enabled).
+func ThumbnailsDisabled(chatID int64) (bool, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return false, err
+	}
+	return settings.ThumbnailsDisabled, nil
+}
+
+// SetThumbnailsDisabled sets whether thumbnails should be disabled for the chat.
+func SetThumbnailsDisabled(chatID int64, disabled bool) error {
+	return modifyChatSettings(chatID, func(s *ChatSettings) bool {
+		if s.ThumbnailsDisabled == disabled {
+			return false
+		}
+		s.ThumbnailsDisabled = disabled
+		return true
+	})
+}
+
+// ───────────── admin_mode ─────────────
+
+type AdminMode string
+
+const (
+	AdminModeAdminsOnly AdminMode = "admin"
+	AdminModeAdminAuth  AdminMode = "adminauth"
+	AdminModeEveryone   AdminMode = "everyone"
+)
+
+func GetAdminMode(chatID int64) (AdminMode, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return "", err
+	}
+	if settings.AdminMode == "" {
+		return AdminModeAdminAuth, nil
+	}
+	return settings.AdminMode, nil
+}
+
+// ───────────── channel_play ─────────────
+
+func LinkedChannel(chatID int64) (int64, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return 0, err
+	}
+	return settings.ChannelPlayID, nil
+}
+
+// ───────────── assistant ─────────────
 
 var (
 	assistantCount int     // total assistants; valid indexes are 1..assistantCount

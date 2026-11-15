@@ -18,21 +18,30 @@
 package platforms
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	"ArtistMusic/ArtistMusic/logger"
-
-	td "github.com/ArtistMusic/Artist"
-
-	"ArtistMusic/config"
 	state "ArtistMusic/ArtistMusic/core/models"
+	"ArtistMusic/ArtistMusic/logger"
 	"ArtistMusic/ArtistMusic/utils"
+	"ArtistMusic/config"
+	"ArtistMusic/config/cookies"
+	td "github.com/ArtistMusic/Artist"
 )
+
+// ───────────── youtube ─────────────
 
 const (
 	PlatformYouTube        state.PlatformName = "YouTube"
@@ -245,12 +254,12 @@ func (p *YouTubePlatform) handleTrackURL(rawURL string) ([]*state.Track, error) 
 			}
 		}
 	}
-    
-    	if t, err := p.fetchTrackViaOEmbed(videoID); err == nil && t != nil {
+
+	if t, err := p.fetchTrackViaOEmbed(videoID); err == nil && t != nil {
 		p.cache.Set("track:"+videoID, []*state.Track{t})
 		return []*state.Track{t}, nil
 	}
-    
+
 	return nil, errors.New("track not found")
 }
 
@@ -691,4 +700,482 @@ func atoi(s string) int {
 		}
 	}
 	return n
+}
+
+// ───────────── ytdlp ─────────────
+
+const PlatformYtDlp state.PlatformName = "YtDlp"
+
+type YtdlpPlatform struct{}
+
+type ytdlpInfo struct {
+	ID          string      `json:"id"`
+	Title       string      `json:"title"`
+	Duration    float64     `json:"duration"`
+	Thumbnail   string      `json:"thumbnail"`
+	URL         string      `json:"webpage_url"`
+	OriginalURL string      `json:"original_url"`
+	Uploader    string      `json:"uploader"`
+	IsLive      bool        `json:"is_live"`
+	Extractor   string      `json:"extractor"`
+	Entries     []ytdlpInfo `json:"entries"`
+}
+
+var (
+	bannedExtractors = map[string]bool{
+		"alphaporno": true, "beeg": true, "behindkink": true, "bongacams": true,
+		"cam4": true, "cammodels": true, "camsoda": true, "chaturbate": true,
+		"drtuber": true, "eporner": true, "erocast": true, "eroprofile": true,
+		"fourtube": true, "goshgay": true, "hellporno": true, "iwara": true,
+		"lovehomeporn": true, "manyvids": true, "motherless": true, "murrtube": true,
+		"nonktube": true, "noodlemagazine": true, "nubilesporn": true, "nuvid": true,
+		"oftv": true, "peekvids": true, "pornbox": true, "pornflip": true,
+		"pornhub": true, "pornotube": true, "pornovoisines": true, "pornoxo": true,
+		"redgifs": true, "redtube": true, "rule34video": true, "sauceplus": true,
+		"sexu": true, "slutload": true, "spankbang": true, "stripchat": true,
+		"sunporno": true, "thisvid": true, "tnaflix": true, "toypics": true,
+		"txxx": true, "xhamster": true, "xnxx": true, "xvideos": true,
+		"xxxymovies": true, "youjizz": true, "youporn": true, "zenporn": true,
+	}
+	// audioOnlyExtractors are sites without video streams; a video request is
+	// silently downgraded to audio.
+	audioOnlyExtractors = map[string]bool{
+		"soundcloud": true,
+	}
+	ytURLPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(youtube\.com|youtu\.be|music\.youtube\.com)`),
+	}
+)
+
+func init() {
+	Register(&YtdlpPlatform{})
+}
+
+func (y *YtdlpPlatform) Name() state.PlatformName { return PlatformYtDlp }
+func (y *YtdlpPlatform) Priority() int            { return 60 }
+
+func (y *YtdlpPlatform) CanGet(query string) bool {
+	if _, err := sanitizeMediaURL(query); err != nil {
+		return false
+	}
+	parsed, err := url.Parse(query)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Host)
+	return host != "t.me" &&
+		host != "telegram.me" &&
+		host != "telegram.dog" &&
+		!strings.HasSuffix(host, ".t.me")
+}
+
+func (y *YtdlpPlatform) Get(query string, video bool) ([]*state.Track, error) {
+	safeURL, err := sanitizeMediaURL(query)
+	if err != nil {
+		return nil, errUnsafeURL
+	}
+
+	info, err := y.extractMetadata(safeURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract metadata: %w", err)
+	}
+
+	if info.IsLive {
+		return nil, errors.New("live streams are not supported")
+	}
+
+	if bannedExtractors[strings.ToLower(info.Extractor)] {
+		return nil, errors.New("adult content is not allowed")
+	}
+
+	var tracks []*state.Track
+	if len(info.Entries) > 0 {
+		for _, entry := range info.Entries {
+			if entry.IsLive || bannedExtractors[strings.ToLower(entry.Extractor)] {
+				continue
+			}
+			tracks = append(tracks, y.toTrack(&entry, video))
+		}
+	} else {
+		tracks = []*state.Track{y.toTrack(info, video)}
+	}
+
+	return tracks, nil
+}
+
+func (y *YtdlpPlatform) CanDownload(source state.PlatformName) bool {
+	return source == PlatformYtDlp || source == PlatformYouTube
+}
+
+func (y *YtdlpPlatform) Download(
+	ctx context.Context,
+	track *state.Track,
+	_ *td.Message,
+) (string, error) {
+	if f := findFileIn(slotDir(ctx), track); f != "" {
+		logger.Debug("YtDlp: cache hit " + f)
+		return f, nil
+	}
+
+	safeURL, err := sanitizeMediaURL(track.URL)
+	if err != nil {
+		return "", errUnsafeURL
+	}
+
+	args := []string{
+		"--no-playlist",
+		"--no-part",
+		"--geo-bypass",
+		"--no-warnings",
+		"--ignore-errors",
+		"--no-check-certificate",
+		"-q",
+		"-o", getPathIn(slotDir(ctx), track, ".%(ext)s"),
+	}
+
+	if track.Video {
+		args = append(args,
+			"-f", "(b[height>=360][height<=1080]/bv*[height>=360][height<=1080]/bv*)+(ba[abr>=180][abr<=360]/ba)/b",
+		)
+	} else {
+		args = append(args,
+			"-f", "ba[abr>=180][abr<=360]/ba",
+			"-x",
+			"--concurrent-fragments", "4",
+		)
+	}
+
+	if y.isYouTubeURL(track.URL) && cookieModeOf(ctx) != cookiesOff {
+		if cookieFile, err := cookies.GetRandomCookieFile(); err == nil && cookieFile != "" {
+			args = append(args, "--cookies", cookieFile)
+		}
+	}
+
+	args = append(args, "--", safeURL)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		findAndRemoveIn(slotDir(ctx), track)
+		if isDownloadCancelled(err) {
+			return "", err
+		}
+		return "", fmt.Errorf(
+			"yt-dlp failed: %w\nstdout: %s\nstderr: %s",
+			err, strings.TrimSpace(stdout.String()), strings.TrimSpace(stderr.String()),
+		)
+	}
+
+	p := findFileIn(slotDir(ctx), track)
+	if p == "" {
+		return "", errors.New("yt-dlp produced no output file")
+	}
+
+	logger.Infof("YtDlp: downloaded %s", p)
+	return p, nil
+}
+
+// ytdlpCookiesAvailable reports whether at least one cookie file is configured.
+func ytdlpCookiesAvailable() bool {
+	f, err := cookies.GetRandomCookieFile()
+	return err == nil && f != ""
+}
+
+func (y *YtdlpPlatform) extractMetadata(urlStr string) (*ytdlpInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	args := []string{
+		"-j", "--flat-playlist",
+		"--no-warnings", "--no-check-certificate",
+	}
+
+	if y.isYouTubeURL(urlStr) {
+		if cf, err := cookies.GetRandomCookieFile(); err == nil && cf != "" {
+			args = append(args, "--cookies", cf)
+		}
+	}
+
+	args = append(args, "--", urlStr)
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("metadata extraction failed: %w\n%s", err, stderr.String())
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+
+	if len(lines) > 1 {
+		var info ytdlpInfo
+		for _, line := range lines {
+			var entry ytdlpInfo
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				logger.Debugf("YtDlp: skip bad entry: %v", err)
+				continue
+			}
+			info.Entries = append(info.Entries, entry)
+		}
+		if len(info.Entries) == 0 {
+			return nil, errors.New("no valid entries in playlist")
+		}
+		return &info, nil
+	}
+
+	var info ytdlpInfo
+	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata JSON: %w", err)
+	}
+	return &info, nil
+}
+
+func (y *YtdlpPlatform) toTrack(info *ytdlpInfo, video bool) *state.Track {
+	if video && audioOnlyExtractors[strings.ToLower(info.Extractor)] {
+		video = false
+	}
+	return &state.Track{
+		ID:       info.ID,
+		Title:    info.Title,
+		Duration: int(info.Duration),
+		Artwork:  info.Thumbnail,
+		URL:      firstNonEmpty(info.OriginalURL, info.URL),
+		Source:   PlatformYtDlp,
+		Video:    video,
+	}
+}
+
+func (y *YtdlpPlatform) isYouTubeURL(urlStr string) bool {
+	for _, p := range ytURLPatterns {
+		if p.MatchString(urlStr) {
+			return true
+		}
+	}
+	return false
+}
+
+// ───────────── artistbots_api ─────────────
+
+const (
+	audioDownloadTimeout = 300 * time.Second
+	videoDownloadTimeout = 600 * time.Second
+
+	minValidDownloadBytes = 10_000
+)
+
+// PlatformArtistbotsApi downloads YouTube tracks through the Artistbots API:
+//
+//	GET {ARTISTBOTS_API_URL}/download?url=VIDEO_ID&type=audio|video&api_key=KEY
+//
+// The endpoint answers with JSON carrying a download link (download_url); the
+// file is then fetched from that link. If the endpoint streams the media
+// directly instead, the body is saved as-is.
+const PlatformArtistbotsApi state.PlatformName = "ArtistbotsApi"
+
+var artistbotsHTTP = &http.Client{}
+
+type ArtistbotsApiPlatform struct{}
+
+func init() {
+	Register(&ArtistbotsApiPlatform{})
+}
+
+func (a *ArtistbotsApiPlatform) Name() state.PlatformName { return PlatformArtistbotsApi }
+
+// Priority 88: tried before ArtistApi (85) and yt-dlp (60) for YouTube tracks.
+func (a *ArtistbotsApiPlatform) Priority() int { return 88 }
+
+func (a *ArtistbotsApiPlatform) CanGet(_ string) bool { return false }
+
+func (a *ArtistbotsApiPlatform) Get(_ string, _ bool) ([]*state.Track, error) {
+	return nil, errors.New("artistbotsapi platform does not support search")
+}
+
+func (a *ArtistbotsApiPlatform) CanDownload(source state.PlatformName) bool {
+	if config.ArtistbotsAPIURL == "" || config.ArtistbotsAPIKey == "" {
+		return false
+	}
+	return source == PlatformYouTube
+}
+
+func (a *ArtistbotsApiPlatform) Download(
+	ctx context.Context,
+	track *state.Track,
+	_ *td.Message,
+) (string, error) {
+	if p := findFileIn(slotDir(ctx), track); p != "" {
+		logger.Debug("ArtistbotsApi: cache hit " + p)
+		return p, nil
+	}
+
+	if track.ID == "" {
+		return "", errors.New("artistbotsapi: missing video id")
+	}
+
+	dtype, ext, timeout := "audio", ".mp3", audioDownloadTimeout
+	if track.Video {
+		dtype, ext, timeout = "video", ".mp4", videoDownloadTimeout
+	}
+
+	dctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	path := getPathIn(slotDir(ctx), track, ext)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", errors.New("artistbotsapi: cannot create downloads dir")
+	}
+
+	fail := func(err error) (string, error) {
+		os.Remove(path)
+		if ctx.Err() != nil {
+			return "", ctx.Err() // cancelled by the caller
+		}
+		if dctx.Err() != nil {
+			return "", errors.New("artistbotsapi: request timed out")
+		}
+		return "", scrubArtistbotsErr(err)
+	}
+
+	base := strings.TrimRight(config.ArtistbotsAPIURL, "/")
+	if !strings.HasSuffix(base, "/download") {
+		base += "/download"
+	}
+	q := url.Values{}
+	q.Set("url", track.ID)
+	q.Set("type", dtype)
+	q.Set("api_key", config.ArtistbotsAPIKey)
+
+	resp, err := artistbotsGet(dctx, base+"?"+q.Encode())
+	if err != nil {
+		return fail(fmt.Errorf("artistbotsapi request failed: %w", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fail(fmt.Errorf("artistbotsapi returned %d", resp.StatusCode))
+	}
+
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	body := io.Reader(resp.Body)
+
+	if strings.Contains(ct, "json") || strings.HasPrefix(ct, "text/") {
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if err != nil {
+			return fail(fmt.Errorf("artistbotsapi read failed: %w", err))
+		}
+
+		link, err := parseArtistbotsLink(raw, config.ArtistbotsAPIURL)
+		if err != nil {
+			return fail(err)
+		}
+
+		resp2, err := artistbotsGet(dctx, link)
+		if err != nil {
+			return fail(fmt.Errorf("artistbotsapi file request failed: %w", err))
+		}
+		defer resp2.Body.Close()
+
+		if resp2.StatusCode >= 400 {
+			return fail(fmt.Errorf("artistbotsapi file returned %d", resp2.StatusCode))
+		}
+		body = resp2.Body
+	}
+
+	out, err := os.Create(path)
+	if err != nil {
+		return fail(errors.New("artistbotsapi: cannot create file"))
+	}
+	if _, err := io.Copy(out, body); err != nil {
+		out.Close()
+		return fail(fmt.Errorf("artistbotsapi download failed: %w", err))
+	}
+	if err := out.Close(); err != nil {
+		return fail(errors.New("artistbotsapi: cannot write file"))
+	}
+
+	info, statErr := os.Stat(path)
+	if statErr != nil || info.Size() < minValidDownloadBytes {
+		return fail(errors.New("artistbotsapi returned an invalid or empty file"))
+	}
+
+	return path, nil
+}
+
+func artistbotsGet(ctx context.Context, rawURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	return artistbotsHTTP.Do(req)
+}
+
+// parseArtistbotsLink extracts the download link from the API's JSON reply.
+func parseArtistbotsLink(raw []byte, apiBase string) (string, error) {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return "", errors.New("artistbotsapi: unexpected response")
+	}
+
+	if ok, has := m["success"].(bool); has && !ok {
+		return "", errors.New("artistbotsapi: request rejected")
+	}
+	if st, has := m["status"].(string); has {
+		switch strings.ToLower(st) {
+		case "error", "failed", "fail":
+			return "", errors.New("artistbotsapi: request failed")
+		}
+	}
+
+	pick := func(mm map[string]any) string {
+		for _, k := range []string{"download_url", "url", "link", "stream_url"} {
+			if s, ok := mm[k].(string); ok && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+		return ""
+	}
+
+	link := pick(m)
+	if link == "" {
+		if data, ok := m["data"].(map[string]any); ok {
+			link = pick(data)
+		}
+	}
+	if link == "" {
+		return "", errors.New("artistbotsapi: no download link in response")
+	}
+
+	if strings.HasPrefix(link, "/") {
+		link = strings.TrimRight(apiBase, "/") + link
+	}
+
+	safe, err := sanitizeMediaURL(link)
+	if err != nil {
+		return "", errors.New("artistbotsapi: unsafe download link")
+	}
+	return safe, nil
+}
+
+// scrubArtistbotsErr removes the API key and base URL from an error message.
+func scrubArtistbotsErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	for _, s := range []string{
+		config.ArtistbotsAPIKey,
+		url.QueryEscape(config.ArtistbotsAPIKey),
+		config.ArtistbotsAPIURL,
+	} {
+		if s != "" {
+			msg = strings.ReplaceAll(msg, s, "***")
+		}
+	}
+	return errors.New(msg)
 }

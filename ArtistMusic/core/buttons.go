@@ -18,16 +18,22 @@
 package core
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os/exec"
 	"strings"
+	"time"
 
-	td "github.com/ArtistMusic/Artist"
-
-	"ArtistMusic/config"
 	"ArtistMusic/ArtistMusic/locales"
+	"ArtistMusic/ArtistMusic/logger"
 	"ArtistMusic/ArtistMusic/utils"
+	"ArtistMusic/config"
+	td "github.com/ArtistMusic/Artist"
 )
+
+// ───────────── buttons ─────────────
 
 var F func(chatID int64, key string, values ...locales.Arg) string
 
@@ -116,7 +122,6 @@ func UrlBtn(text, url string) td.InlineKeyboardButton {
 	return styleURLBtn(text, url, randomColour())
 }
 
-
 func GetCancelKeyboard(chatID int64) td.ReplyMarkup {
 	return &td.ReplyMarkupInlineKeyboard{
 		Rows: [][]td.InlineKeyboardButton{
@@ -193,11 +198,11 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 
 	// Main controls (random colours, re-rolled on every refresh)
 	rows = append(rows, []td.InlineKeyboardButton{
-		DataBtn("▶️", prefix+"resume"),
-		DataBtn("⏸", prefix+"pause"),
-		DataBtn("🔁", prefix+"replay"),
+		DataBtn("Ⅱ", prefix+"pause"),
+		DataBtn("▷", prefix+"resume"),
+		DataBtn("↻", prefix+"replay"),
 		DataBtn("⏭", prefix+"skip"),
-		DataBtn("⏹", prefix+"stop"),
+		DataBtn("▢", prefix+"stop"),
 	})
 
 	// Seek controls
@@ -299,4 +304,103 @@ func GetRestartConfirmMarkup(chatID int64) td.ReplyMarkup {
 			},
 		},
 	}
+}
+
+// ───────────── helpers ─────────────
+
+func normalizeVideo(path string, speed float64) (int, int, int, string) {
+	if speed <= 0 {
+		speed = 1.0
+	}
+	w, h := getVideoDimensions(path)
+	if w <= 0 || h <= 0 {
+		w = 1280
+		h = 720
+	}
+	maxW := 1280
+	maxH := 720
+	if w > maxW {
+		h = h * maxW / w
+		w = maxW
+	}
+	if h > maxH {
+		w = w * maxH / h
+		h = maxH
+	}
+	if w%2 != 0 {
+		w--
+	}
+	if h%2 != 0 {
+		h--
+	}
+	fps := 30
+	videoSpeed := 1.0 / speed
+	filter := fmt.Sprintf("setpts=%.4f*PTS,scale=%d:%d", videoSpeed, w, h)
+	return w, h, fps, filter
+}
+
+type ffprobeOutput struct {
+	Streams []struct {
+		CodecType string `json:"codec_type"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
+	} `json:"streams"`
+}
+
+func getVideoDimensions(filePath string) (int, int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(
+		ctx,
+		"ffprobe",
+		"-v", "quiet",
+		"-print_format", "json",
+		"-show_streams",
+		filePath,
+	)
+
+	out, err := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		logger.Error(
+			"[getVideoDimensions] ffprobe timed out for " + filePath,
+		)
+		return 0, 0
+	}
+	if err != nil {
+		logger.Error(
+			"[getVideoDimensions] ffprobe failed for " + filePath + " : " + err.Error(),
+		)
+		return 0, 0
+	}
+
+	var probe ffprobeOutput
+	if err := json.Unmarshal(out, &probe); err != nil {
+		logger.Error(
+			"[getVideoDimensions] failed to parse ffprobe JSON for " + filePath + " : " + err.Error(),
+		)
+		return 0, 0
+	}
+
+	for _, s := range probe.Streams {
+		if s.CodecType == "video" && s.Width > 0 && s.Height > 0 {
+			return s.Width, s.Height
+		}
+	}
+
+	for _, s := range probe.Streams {
+		if s.Width > 0 && s.Height > 0 {
+			return s.Width, s.Height
+		}
+	}
+
+	logger.Error(
+		"[getVideoDimensions] no valid video stream found for " + filePath,
+	)
+	return 0, 0
+}
+
+func isStreamURL(path string) bool {
+	return strings.HasPrefix(path, "http://") ||
+		strings.HasPrefix(path, "https://")
 }

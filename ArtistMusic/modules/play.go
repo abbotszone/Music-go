@@ -23,21 +23,22 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"ArtistMusic/ArtistMusic/logger"
-
-	td "github.com/ArtistMusic/Artist"
-
-	"ArtistMusic/config"
 	"ArtistMusic/ArtistMusic/core"
 	state "ArtistMusic/ArtistMusic/core/models"
 	"ArtistMusic/ArtistMusic/database"
 	"ArtistMusic/ArtistMusic/locales"
+	"ArtistMusic/ArtistMusic/logger"
 	"ArtistMusic/ArtistMusic/platforms"
 	"ArtistMusic/ArtistMusic/utils"
 	"ArtistMusic/ArtistUbot"
+	"ArtistMusic/config"
+	td "github.com/ArtistMusic/Artist"
 )
+
+// ───────────── play ─────────────
 
 type playOpts struct {
 	Force bool
@@ -122,8 +123,6 @@ This command is useful for urgent playback needs but will disrupt the current qu
 <b>◇ Use Case:</b>
 Immediate video playback when something urgent needs to be shown.`
 
-
-
 	helpTexts["/playforce"] = helpTexts["/fplay"]
 
 	helpTexts["/autoplay"] = `<i>Automatically play recommended songs when the queue ends.</i>
@@ -146,8 +145,6 @@ func vplayHandler(c *td.Client, m *td.Message) error { return handlePlay(c, m, &
 func fvplayHandler(c *td.Client, m *td.Message) error {
 	return handlePlay(c, m, &playOpts{Force: true, Video: true})
 }
-
-
 
 func handlePlay(c *td.Client, m *td.Message, opts *playOpts) error {
 	chatID := m.ChatID()
@@ -964,4 +961,346 @@ func PickAutoplayTrack(r *core.RoomState, last *state.Track) *state.Track {
 		r.AddPlayed(chosen)
 	}
 	return chosen
+}
+
+// ───────────── download ─────────────
+
+// downloadEditInterval throttles how often the progress message is edited.
+const downloadEditInterval = 2 * time.Second
+
+// downloadSession tracks one in-flight track download for a chat.
+// A chat only downloads a single track at a time.
+type downloadSession struct {
+	cancel   context.CancelFunc // cancels the Go-side download (yt-dlp/http)
+	msg      *td.Message        // status message edited while downloading
+	started  time.Time
+	lastEdit time.Time
+	lastSize int64
+	total    int64
+	fileID   int32 // TDLib file id, set once updateFile events arrive
+}
+
+// downloadManager coordinates cancellation and progress for downloads. It is
+// keyed by chat ID (for the cancel button) and by the Telegram remote file ID
+// (because TDLib updateFile events only carry file ids, not chats).
+type downloadManager struct {
+	mu     sync.RWMutex
+	byChat map[int64]*downloadSession
+	byFile map[string]int64 // telegram remote file id -> chat id
+}
+
+var downloads = &downloadManager{
+	byChat: make(map[int64]*downloadSession),
+	byFile: make(map[string]int64),
+}
+
+func init() {
+	platforms.OnDownloadStart = func(fileID string, msg *td.Message) {
+		downloads.attach(fileID, msg)
+	}
+}
+
+// begin registers a new download session for a chat.
+func (dm *downloadManager) begin(chatID int64, cancel context.CancelFunc, msg *td.Message) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	dm.byChat[chatID] = &downloadSession{
+		cancel:  cancel,
+		msg:     msg,
+		started: time.Now(),
+	}
+}
+
+// attach links a Telegram remote file id to the chat that is downloading it.
+// It is called by the platforms package right before a TDLib download starts.
+func (dm *downloadManager) attach(fileID string, msg *td.Message) {
+	if fileID == "" || msg == nil {
+		return
+	}
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	if _, ok := dm.byChat[msg.ChatId]; !ok {
+		dm.byChat[msg.ChatId] = &downloadSession{msg: msg, started: time.Now()}
+	}
+	dm.byFile[fileID] = msg.ChatId
+}
+
+// cancel stops the download running in a chat. It cancels the Go context
+// (yt-dlp/http) and, for Telegram file downloads, also asks TDLib to stop.
+// It returns false when no download is in progress for the chat.
+func (dm *downloadManager) cancel(chatID int64) bool {
+	dm.mu.Lock()
+	s, ok := dm.byChat[chatID]
+	if !ok {
+		dm.mu.Unlock()
+		return false
+	}
+	dm.removeLocked(chatID)
+	fileID := s.fileID
+	if s.cancel != nil {
+		s.cancel()
+	}
+	dm.mu.Unlock()
+
+	if fileID != 0 {
+		if err := core.Bot.CancelDownloadFile(fileID, &td.CancelDownloadFileOpts{}); err != nil {
+			logger.Warnf("Failed to cancel download for chat %d: %v", chatID, err)
+		}
+	}
+	return true
+}
+
+// finish drops the session once a download completes (success or failure).
+func (dm *downloadManager) finish(chatID int64) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	dm.removeLocked(chatID)
+}
+
+func (dm *downloadManager) removeLocked(chatID int64) {
+	delete(dm.byChat, chatID)
+	for id, c := range dm.byFile {
+		if c == chatID {
+			delete(dm.byFile, id)
+		}
+	}
+}
+
+// onFileUpdate records the TDLib file id (needed for cancellation) and
+// refreshes the "Downloading..." progress message.
+func (dm *downloadManager) onFileUpdate(c *td.Client, u *td.UpdateFile) error {
+	if u == nil || u.File == nil || u.File.Remote == nil || u.File.Local == nil {
+		return nil
+	}
+
+	dm.mu.Lock()
+	chatID, ok := dm.byFile[u.File.Remote.Id]
+	if !ok {
+		dm.mu.Unlock()
+		return nil
+	}
+	s := dm.byChat[chatID]
+	if s == nil {
+		dm.mu.Unlock()
+		return nil
+	}
+	s.fileID = u.File.Id
+
+	now := time.Now()
+	done := !u.File.Local.IsDownloadingActive
+	if now.Sub(s.lastEdit) < downloadEditInterval && !done {
+		dm.mu.Unlock()
+		return nil
+	}
+	interval := now.Sub(s.lastEdit).Seconds()
+	s.lastEdit = now
+
+	total := u.File.Size
+	if total <= 0 {
+		total = u.File.ExpectedSize
+	}
+	if total > 0 {
+		s.total = total
+	}
+	current := min(u.File.Local.DownloadedSize, s.total)
+
+	speed := 0.0
+	if interval > 0 && current >= s.lastSize {
+		speed = float64(current-s.lastSize) / interval
+	}
+	s.lastSize = current
+
+	percentage := 0.0
+	if s.total > 0 {
+		percentage = float64(current) / float64(s.total) * 100
+	}
+	eta := int64(0)
+	if speed > 0 && s.total > current {
+		eta = int64(float64(s.total-current) / speed)
+	}
+
+	msg := s.msg
+	started := s.started
+	if done {
+		dm.removeLocked(chatID)
+	}
+	dm.mu.Unlock()
+
+	if msg == nil {
+		return nil
+	}
+
+	elapsed := now.Sub(started).Seconds()
+
+	lang, err := database.Language(msg.ChatId)
+	if err != nil {
+		lang = "en"
+	}
+
+	text := locales.Get(lang, "download_progress", locales.Arg{
+		"percentage": fmt.Sprintf("%.1f", percentage),
+		"speed":      utils.FormatBytes(int64(speed)) + "/s",
+		"eta":        utils.FormatDuration(int(eta)),
+		"elapsed":    utils.FormatTime(int(elapsed)),
+	})
+
+	if _, err := msg.EditText(c, text, &td.EditTextMessageOpts{
+		ParseMode:   td.ParseModeHTML,
+		ReplyMarkup: msg.ReplyMarkup,
+	}); err != nil {
+		// Ignore edit errors; the next update will retry.
+		return nil
+	}
+	return nil
+}
+
+// downloadUpdateHandler is registered in handlers.go and drives the progress
+// message of the active download.
+func downloadUpdateHandler(c *td.Client, u *td.UpdateFile) error {
+	return downloads.onFileUpdate(c, u)
+}
+
+// © Copyright Reserved - ArtistMusic
+// ===========================================
+// © 2026 ArtistMusic
+// ↗ GitHub : https://github.com/elevenyts/ArtistMusic
+// ))) Telegram Channel : https://t.me/Artistbots
+// ◇ Support Group : https://t.me/Artistbots
+// ===========================================
+// © 2026 ArtistMusic (modifications)
+// ♥ Love From ArtistMusic
+
+// ───────────── queue ─────────────
+
+func queueHandler(c *td.Client, m *td.Message) error {
+	return handleQueue(c, m, false)
+}
+
+func handleQueue(c *td.Client, m *td.Message, cplay bool) error {
+	if !isSuperGroup(c, m) {
+		return nil
+	}
+
+	if cplay && !filterAuthUsers(c, m) {
+		return nil
+	}
+
+	chatID := m.ChatID()
+
+	r, err := getEffectiveRoom(m.ChatID(), cplay)
+	if err != nil {
+		_, err := m.ReplyText(c, err.Error(), nil)
+		return err
+	}
+
+	t := r.Track()
+	if !r.Active() || t == nil {
+		_, err := m.ReplyText(c, F(chatID, "queue_no_active"), nil)
+		return err
+	}
+
+	var b strings.Builder
+
+	b.WriteString(F(chatID, "queue_header"))
+	b.WriteString("\n\n")
+
+	b.WriteString(F(chatID, "queue_now_playing"))
+	b.WriteString("\n")
+
+	fmt.Fprintf(
+		&b,
+		"♬ <a href=\"%s\">%s</a> — %s [%s]\n\n",
+		t.URL,
+		utils.EscapeHTML(utils.ShortTitle(t.Title, 35)),
+		t.Requester,
+		utils.FormatDuration(t.Duration),
+	)
+
+	queue := r.Queue()
+	q := len(queue)
+	useQuote := q >= 3
+
+	if q > 0 {
+		b.WriteString(F(chatID, "queue_up_next"))
+		n := "\n"
+		if !useQuote {
+			n += "\n"
+		}
+		b.WriteString(n)
+
+		if useQuote {
+			b.WriteString("<blockquote>")
+		}
+
+		for i, track := range queue {
+			if i >= 10 {
+				break
+			}
+
+			fmt.Fprintf(
+				&b,
+				"%d. ♪ <a href=\"%s\">%s</a> — %s [%s]\n",
+				i+1,
+				track.URL,
+				utils.EscapeHTML(utils.ShortTitle(track.Title, 35)),
+				track.Requester,
+				utils.FormatDuration(track.Duration),
+			)
+		}
+
+		if useQuote {
+			b.WriteString("</blockquote>")
+		}
+
+		if q > 10 {
+			var full strings.Builder
+
+			full.WriteString(F(chatID, "queue_header"))
+			full.WriteString("\n\n")
+
+			full.WriteString(F(chatID, "queue_now_playing"))
+			full.WriteString("\n")
+
+			fmt.Fprintf(
+				&full,
+				"♬ %s — %s [%s]\n\n",
+				t.Title,
+				t.Requester,
+				utils.FormatDuration(t.Duration),
+			)
+
+			full.WriteString(F(chatID, "queue_up_next"))
+			full.WriteString("\n\n")
+
+			for i, track := range queue {
+				fmt.Fprintf(
+					&full,
+					"%d. %s — %s [%s]\n",
+					i+1,
+					track.Title,
+					track.Requester,
+					utils.FormatDuration(track.Duration),
+				)
+			}
+
+			link, err := utils.CreatePaste(full.String())
+			remaining := q - 10
+
+			if err == nil && link != "" {
+				more := fmt.Sprintf("<a href=\"%s\">%d</a>", link, remaining)
+
+				b.WriteString(F(chatID, "queue_more_line", locales.Arg{
+					"remaining": more,
+				}))
+			} else {
+				b.WriteString(F(chatID, "queue_more_line", locales.Arg{
+					"remaining": remaining,
+				}))
+			}
+		}
+	} else {
+		b.WriteString(F(chatID, "queue_empty_tail"))
+	}
+	_, rerr := m.ReplyText(c, b.String(), &td.SendTextMessageOpts{DisableWebPagePreview: true})
+	return rerr
 }

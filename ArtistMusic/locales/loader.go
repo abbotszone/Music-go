@@ -21,14 +21,15 @@ import (
 	"embed"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 
 	"ArtistMusic/ArtistMusic/logger"
-
-	"gopkg.in/yaml.v3"
-
 	"ArtistMusic/config"
+	"gopkg.in/yaml.v3"
 )
+
+// ───────────── loader ─────────────
 
 //go:embed *.yml
 var localesFS embed.FS
@@ -105,3 +106,13 @@ func Get(lang, key string, values Arg) string {
 	return expandEmojis(val)
 }
 
+// ───────────── emoji ─────────────
+
+var emojiRegex = regexp.MustCompile(`\{emoji:([^}]+)\}`)
+
+// expandEmojis unwraps legacy {emoji:X} tokens into the bare symbol X.
+// Emojis were replaced by plain text symbols, so no custom <tg-emoji>
+// entities are generated any more.
+func expandEmojis(s string) string {
+	return emojiRegex.ReplaceAllString(s, "$1")
+}

@@ -18,11 +18,18 @@
 package modules
 
 import (
-	td "github.com/ArtistMusic/Artist"
-	"github.com/ArtistMusic/Artist/filters/callbackquery"
+	"strings"
 
 	"ArtistMusic/ArtistMusic/core"
+	"ArtistMusic/ArtistMusic/database"
+	"ArtistMusic/ArtistMusic/logger"
+	"ArtistMusic/ArtistMusic/utils"
+	"ArtistMusic/config"
+	td "github.com/ArtistMusic/Artist"
+	"github.com/ArtistMusic/Artist/filters/callbackquery"
 )
+
+// ───────────── handlers ─────────────
 
 func Init(bot *td.Client, assistants *core.AssistantManager) {
 	assistants.ForEach(func(a *core.Assistant) {
@@ -91,4 +98,101 @@ func Init(bot *td.Client, assistants *core.AssistantManager) {
 	})
 
 	go MonitorRooms()
+}
+
+// ───────────── filters ─────────────
+
+func getCommand(m *td.Message) string {
+	parts := strings.Fields(m.Text())
+	if len(parts) == 0 {
+		return ""
+	}
+	cmd, _, _ := strings.Cut(parts[0], "@")
+	return cmd
+}
+
+func checkOwner(c *td.Client, m *td.Message) bool {
+	if config.OwnerID == 0 || m.SenderID() != config.OwnerID {
+		if _, err := m.ReplyText(c, F(m.ChatID(), "only_owner"), nil); err != nil {
+			logger.Error(err)
+		}
+		return false
+	}
+	return true
+}
+
+func isSuperGroup(c *td.Client, m *td.Message) bool {
+	if m.IsPrivate() {
+		if _, err := m.ReplyText(c, F(m.ChatID(), "only_supergroup"), nil); err != nil {
+			logger.Error(err)
+		}
+		database.AddServedUser(m.ChatID())
+		return false
+	}
+
+	chat, err := m.GetChat(c)
+	if err != nil {
+		return false
+	}
+
+	sg, ok := chat.Type.(*td.ChatTypeSupergroup)
+	if !ok || sg.IsChannel {
+		return false
+	}
+
+	database.AddServedChat(m.ChatID())
+	return true
+}
+
+func filterAuthUsers(c *td.Client, m *td.Message) bool {
+	if canUseAdminCommand(c, m.ChatID(), m.SenderID()) {
+		return true
+	}
+
+	mode, err := database.GetAdminMode(m.ChatID())
+	if err == nil && mode == database.AdminModeAdminsOnly {
+		if _, err := m.ReplyText(c, F(m.ChatID(), "only_admin"), nil); err != nil {
+			logger.Error(err)
+		}
+	} else {
+		if _, err := m.ReplyText(c, F(m.ChatID(), "only_admin_or_auth"), nil); err != nil {
+			logger.Error(err)
+		}
+	}
+	return false
+}
+
+func canUseAdminCommand(c *td.Client, chatID, userID int64) bool {
+	if isOwnerOrSudo(userID) {
+		return true
+	}
+
+	mode, err := database.GetAdminMode(chatID)
+	if err != nil {
+		mode = database.AdminModeAdminAuth
+	}
+
+	if mode == database.AdminModeEveryone {
+		return true
+	}
+
+	isAdmin, err := utils.IsChatAdmin(c, chatID, userID)
+	if err == nil && isAdmin {
+		return true
+	}
+
+	if mode == database.AdminModeAdminsOnly {
+		return false
+	}
+
+	isAuth, err := database.IsAuthorized(chatID, userID)
+	return err == nil && isAuth
+}
+
+func isOwnerOrSudo(userID int64) bool {
+	if config.OwnerID != 0 && userID == config.OwnerID {
+		return true
+	}
+	isSudo, err := database.IsSudo(userID)
+	return err == nil && isSudo
 }

@@ -24,6 +24,36 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
+// ───────────── auth_users ─────────────
+
+func IsAuthorized(chatID, userID int64) (bool, error) {
+	settings, err := getChatSettings(chatID)
+	if err != nil {
+		return false, err
+	}
+	return contains(settings.AuthUsers, userID), nil
+}
+
+// ───────────── sudo_users ─────────────
+
+func Sudoers() ([]int64, error) {
+	state, err := getBotState()
+	if err != nil {
+		return nil, err
+	}
+	return state.Sudoers, nil
+}
+
+func IsSudo(id int64) (bool, error) {
+	state, err := getBotState()
+	if err != nil {
+		return false, err
+	}
+	return contains(state.Sudoers, id), nil
+}
+
+// ───────────── bot_state ─────────────
+
 type UsersChats struct {
 	Users []int64 `bson:"users"`
 	Chats []int64 `bson:"chats"`
@@ -138,4 +168,55 @@ func buildIndexes(s *BotState) {
 	for _, c := range s.Served.Chats {
 		s.servedChatsMap[c] = struct{}{}
 	}
+}
+
+// ───────────── served_stats ─────────────
+
+func ServedChats() ([]int64, error) {
+	state, err := getBotState()
+	if err != nil {
+		return nil, err
+	}
+	return state.Served.Chats, nil
+}
+
+func ServedUsers() ([]int64, error) {
+	state, err := getBotState()
+	if err != nil {
+		return nil, err
+	}
+	return state.Served.Users, nil
+}
+
+func AddServedChat(id int64) error {
+	return modifyBotState(func(s *BotState) bool {
+		var added bool
+		s.Served.Chats, added = addUnique(s.Served.Chats, id)
+		if added {
+			s.servedChatsMap[id] = struct{}{}
+		}
+		return added
+	})
+}
+
+func AddServedUser(id int64) error {
+	return modifyBotState(func(s *BotState) bool {
+		var added bool
+		s.Served.Users, added = addUnique(s.Served.Users, id)
+		if added {
+			s.servedUsersMap[id] = struct{}{}
+		}
+		return added
+	})
+}
+
+func RemoveServedChat(id int64) error {
+	return modifyBotState(func(s *BotState) bool {
+		var removed bool
+		s.Served.Chats, removed = removeElement(s.Served.Chats, id)
+		if removed {
+			delete(s.servedChatsMap, id)
+		}
+		return removed
+	})
 }

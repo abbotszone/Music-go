@@ -20,6 +20,9 @@ package platforms
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,16 +31,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"ArtistMusic/ArtistMusic/logger"
-
-	td "github.com/ArtistMusic/Artist"
-	"resty.dev/v3"
+	"unicode"
 
 	state "ArtistMusic/ArtistMusic/core/models"
+	"ArtistMusic/ArtistMusic/logger"
 	"ArtistMusic/ArtistMusic/utils"
 	"ArtistMusic/config"
+	td "github.com/ArtistMusic/Artist"
+	"resty.dev/v3"
 )
+
+// ───────────── registry ─────────────
 
 type reg struct {
 	mu     sync.RWMutex
@@ -292,8 +296,6 @@ func fetchFromURLs(urls []string, video bool) ([]*state.Track, []string) {
 	return tracks, errs
 }
 
-
-
 func searchQuery(q string, video bool) ([]*state.Track, error) {
 	if p := findFor(q); p != nil && p.Name() != PlatformYouTube {
 		if got, err := p.Get(q, video); err == nil && len(got) > 0 {
@@ -372,3 +374,244 @@ func SearchTracks(query string, video bool) ([]*state.Track, error) {
 	return yt.VideoSearch(query)
 }
 
+// ───────────── helpers ─────────────
+
+var errUnsafeURL = errors.New("invalid or unsafe url")
+
+// Download progress hooks, registered by the modules package.
+var (
+	OnDownloadStart func(fileID string, statusMsg *td.Message)
+)
+
+// isDownloadCancelled reports whether err signals a cancelled file download,
+// whether from a cancelled context or a TDLib "canceled" response.
+func isDownloadCancelled(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var tdErr *td.Error
+	if errors.As(err, &tdErr) {
+		return strings.Contains(strings.ToLower(tdErr.Message), "cancel")
+	}
+	return false
+}
+
+func getPath(track *state.Track, ext string) string {
+	return getPathIn("downloads", track, ext)
+}
+
+func getPathIn(dir string, track *state.Track, ext string) string {
+	if ext != "" && !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
+	t := "audio"
+	if track.Video {
+		t = "video"
+	}
+	return filepath.Join(dir, t+"_"+track.ID+ext)
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		logger.Debug("fileExists: " + path + " not found")
+		return false
+	}
+	return info.Size() > 0
+}
+
+func findFile(track *state.Track) string {
+	return findFileIn("downloads", track)
+}
+
+func findFileIn(dir string, track *state.Track) string {
+	t := "audio"
+	if track.Video {
+		t = "video"
+	}
+	files, err := filepath.Glob(filepath.Join(dir, t+"_"+track.ID+"*"))
+	if err != nil {
+		return ""
+	}
+	for _, f := range files {
+		if info, err := os.Stat(f); err == nil && info.Size() > 0 {
+			return f
+		}
+	}
+	return ""
+}
+
+func findAndRemove(track *state.Track) {
+	findAndRemoveIn("downloads", track)
+}
+
+func findAndRemoveIn(dir string, track *state.Track) {
+	t := "audio"
+	if track.Video {
+		t = "video"
+	}
+	files, err := filepath.Glob(filepath.Join(dir, t+"_"+track.ID+"*"))
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		os.Remove(f)
+	}
+}
+
+// ---- per-download options carried in the context (used by the download race) ----
+
+type dlCtxKey int
+
+const (
+	dlSlotDirKey dlCtxKey = iota
+	dlCookieModeKey
+)
+
+// cookieMode tells yt-dlp whether to use the YouTube cookie files.
+type cookieMode int
+
+const (
+	cookiesAuto cookieMode = iota // use cookies if any exist (default)
+	cookiesOn
+	cookiesOff
+)
+
+// withSlotDir makes a download write into its own folder, so parallel
+// downloads of the same track never touch each other's files.
+func withSlotDir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, dlSlotDirKey, dir)
+}
+
+func slotDir(ctx context.Context) string {
+	if d, ok := ctx.Value(dlSlotDirKey).(string); ok && d != "" {
+		return d
+	}
+	return "downloads"
+}
+
+func withCookieMode(ctx context.Context, m cookieMode) context.Context {
+	return context.WithValue(ctx, dlCookieModeKey, m)
+}
+
+func cookieModeOf(ctx context.Context) cookieMode {
+	if m, ok := ctx.Value(dlCookieModeKey).(cookieMode); ok {
+		return m
+	}
+	return cookiesAuto
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+// playableMedia walks a message and its reply chain, returning the first
+// message that carries playable media together with its media kind.
+func playableMedia(c *td.Client, m *td.Message) (msg *td.Message, isVideo, isAudio bool) {
+	check := func(msg *td.Message) (bool, bool) {
+		if msg == nil || msg.Content == nil {
+			return false, false
+		}
+		switch content := msg.Content.(type) {
+		case *td.MessageAudio, *td.MessageVoiceNote:
+			return false, true
+		case *td.MessageVideo, *td.MessageAnimation, *td.MessageVideoNote:
+			return true, false
+		case *td.MessageDocument:
+			if content.Document == nil {
+				return false, false
+			}
+			mt := strings.ToLower(content.Document.MimeType)
+			switch {
+			case strings.HasPrefix(mt, "audio/"):
+				return false, true
+			case strings.HasPrefix(mt, "video/"):
+				return true, false
+			}
+		}
+		return false, false
+	}
+
+	curr := m
+	for curr != nil {
+		if v, a := check(curr); v || a {
+			return curr, v, a
+		}
+		if curr.ReplyToMessageID() <= 0 {
+			break
+		}
+		next, err := curr.GetRepliedMessage(c)
+		if err != nil {
+			break
+		}
+		curr = next
+	}
+	return nil, false, false
+}
+
+func sanitizeMediaURL(raw string) (string, error) {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return "", errUnsafeURL
+	}
+
+	for _, r := range u {
+		if unicode.IsControl(r) || unicode.IsSpace(r) {
+			return "", errUnsafeURL
+		}
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "", errUnsafeURL
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", errUnsafeURL
+	}
+
+	host := parsed.Hostname()
+	if host == "" || parsed.User != nil {
+		return "", errUnsafeURL
+	}
+
+	if strings.EqualFold(host, "localhost") {
+		return "", errUnsafeURL
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsPrivate() || ip.IsUnspecified() {
+			return "", errUnsafeURL
+		}
+	}
+
+	return parsed.String(), nil
+}
