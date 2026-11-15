@@ -208,9 +208,73 @@ func isLoggerEnabled() bool {
 	return l
 }
 
+// sendLog posts an HTML message to the logger chat. It is a no-op when no
+// logger chat is configured or the owner switched the logger off.
+func sendLog(text string) {
+	if config.LoggerID == 0 || core.Bot == nil || !isLoggerEnabled() {
+		return
+	}
+	if _, err := core.Bot.SendTextMessage(
+		config.LoggerID,
+		text,
+		&td.SendTextMessageOpts{ParseMode: "HTML", DisableWebPagePreview: true},
+	); err != nil {
+		logger.Errorf("failed to send log message: %v", err)
+	}
+}
+
+// recentChatLogs de-duplicates add/remove logs: adding the bot to a group
+// raises both a "members added" service message and a chat-member update.
+var recentChatLogs sync.Map
+
+// logChatChange reports the bot being added to / removed from a group or
+// channel. actorID is the user who did it (0 if unknown).
+func logChatChange(c *td.Client, chatID, actorID int64, added bool) {
+	if config.LoggerID == 0 || config.LoggerID == chatID {
+		return
+	}
+
+	key := fmt.Sprintf("%t:%d", added, chatID)
+	if t, ok := recentChatLogs.Load(key); ok && time.Since(t.(time.Time)) < time.Minute {
+		return
+	}
+	recentChatLogs.Store(key, time.Now())
+
+	title, kind := "N/A", "ɢʀσᴜᴘ"
+	if chat, err := c.GetChat(chatID); err == nil && chat != nil {
+		title = utils.EscapeHTML(chat.Title)
+		if sg, ok := chat.Type.(*td.ChatTypeSupergroup); ok && sg.IsChannel {
+			kind = "ᴄʜᴧηηєʟ"
+		}
+	}
+
+	byName, byMention := "N/A", "N/A"
+	if actorID != 0 {
+		if actor, err := c.GetUser(actorID); err == nil && actor != nil {
+			if n := strings.TrimSpace(actor.FirstName + " " + actor.LastName); n != "" {
+				byName = n
+			}
+			byMention = mentionOf(actor, actorID)
+		}
+	}
+
+	msgKey := "logger_bot_removed"
+	if added {
+		msgKey = "logger_bot_added"
+	}
+	sendLog(F(config.LoggerID, msgKey, locales.Arg{
+		"chat_type":  kind,
+		"chat_title": title,
+		"chat_id":    chatID,
+		"by_name":    byName,
+		"by_id":      actorID,
+		"by_mention": byMention,
+		"date_time":  time.Now().Format("02 Jan 2006 • 15:04"),
+	}))
+}
+
 func sendPlayLogs(c *td.Client, m *td.Message, track *state.Track, queued bool) {
-	if config.LoggerID == 0 || config.LoggerID == m.ChatID() ||
-		m.SenderID() == config.OwnerID || !isLoggerEnabled() {
+	if config.LoggerID == 0 || config.LoggerID == m.ChatID() || !isLoggerEnabled() {
 		return
 	}
 

@@ -36,13 +36,14 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
-	"ArtistMusic/config"
 	"ArtistMusic/ArtistMusic/core"
 	"ArtistMusic/ArtistMusic/database"
 	"ArtistMusic/ArtistMusic/locales"
 	"ArtistMusic/ArtistMusic/logger"
 	"ArtistMusic/ArtistMusic/modules"
+	"ArtistMusic/config"
 )
 
 func main() {
@@ -102,15 +103,58 @@ func main() {
 }
 
 func startHTTPServer() {
+	// "/" and "/health" answer 200 so host health checks and uptime
+	// pingers see a healthy app (the default mux returned 404 for "/").
+	mux := http.NewServeMux()
+	healthy := func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}
+	mux.HandleFunc("/", healthy)
+	mux.HandleFunc("/health", healthy)
+
 	go func() {
 		addr := "0.0.0.0:" + config.Port
 
 		logger.Infof("HTTP server listening on %s", addr)
 
-		if err := http.ListenAndServe(addr, nil); err != nil {
-			// logger.Fatalf("HTTP server failed: %v", err)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			logger.Errorf("HTTP server failed: %v", err)
 		}
 	}()
+
+	go keepAlive()
+}
+
+// keepAlive pings the app's own public URL every few minutes so free hosts
+// (Render, Koyeb, ...) do not spin the instance down for inactivity, which
+// looks like the bot "restarting". Set KEEP_ALIVE_URL, or run on Render where
+// RENDER_EXTERNAL_URL is provided automatically.
+func keepAlive() {
+	defer func() { _ = recover() }()
+
+	url := os.Getenv("KEEP_ALIVE_URL")
+	if url == "" {
+		url = os.Getenv("RENDER_EXTERNAL_URL")
+	}
+	if url == "" {
+		return
+	}
+
+	logger.Infof("Keep-alive pings enabled for %s", url)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		resp, err := client.Get(url)
+		if err != nil {
+			logger.Warnf("keep-alive ping failed: %v", err)
+			continue
+		}
+		_ = resp.Body.Close()
+	}
 }
 
 func refreshDirs() error {

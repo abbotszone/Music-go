@@ -574,11 +574,7 @@ func handleChatMemberAdd(c *td.Client, m *td.Message) error {
 		}
 		database.AddServedChat(chatID)
 
-		if config.LoggerID != 0 {
-			if _, rerr := c.SendTextMessage(config.LoggerID, F(config.LoggerID, "logger_bot_added", buildLogArgs(c, m, chatID, "added")), nil); rerr != nil {
-				return rerr
-			}
-		}
+		logChatChange(c, chatID, m.SenderID(), true)
 
 		return nil
 	}
@@ -593,39 +589,7 @@ func handleBotRemoved(c *td.Client, u *td.UpdateChatMember, chatID int64) {
 	core.DropChatState(chatID)
 	database.RemoveServedChat(chatID)
 
-	if config.LoggerID == 0 || config.LoggerID == chatID {
-		return
-	}
-
-	groupName := "N/A"
-	if chat, err := c.GetChat(chatID); err == nil && chat != nil {
-		groupName = chat.Title
-	}
-
-	actorID := u.ActorUserId
-	actorName := "N/A"
-	actorMention := "N/A"
-	if actor, err := c.GetUser(actorID); err == nil && actor != nil {
-		actorName = strings.TrimSpace(actor.FirstName + " " + actor.LastName)
-		if actorName == "" {
-			actorName = "N/A"
-		}
-		actorMention = mentionOf(actor, actorID)
-	}
-
-	msg := F(config.LoggerID, "logger_bot_removed", locales.Arg{
-		"group_name":          groupName,
-		"group_id":            chatID,
-		"group_username":      "N/A",
-		"removed_by_name":     actorName,
-		"removed_by_id":       actorID,
-		"removed_by_username": actorMention,
-		"date_time":           time.Now().Format("02 Jan 2006 • 15:04"),
-	})
-
-	if _, err := c.SendTextMessage(config.LoggerID, msg, nil); err != nil {
-		logger.Errorf("failed to send bot-removed log: %v", err)
-	}
+	logChatChange(c, chatID, u.ActorUserId, false)
 }
 
 func handleVoiceChatAction(c *td.Client, m *td.Message) error {
@@ -665,30 +629,4 @@ func handleVoiceChatAction(c *td.Client, m *td.Message) error {
 	}
 
 	return nil
-}
-
-func buildLogArgs(c *td.Client, m *td.Message, chatID int64, action string) locales.Arg {
-	groupName := "N/A"
-	if chat, err := m.GetChat(c); err == nil && chat != nil {
-		groupName = chat.Title
-	}
-
-	sender, _ := m.GetUser(c)
-	actorID := m.SenderID()
-	actorName := "N/A"
-	if sender != nil {
-		if full := strings.TrimSpace(sender.FirstName + " " + sender.LastName); full != "" {
-			actorName = full
-		}
-	}
-
-	return locales.Arg{
-		"group_name":            groupName,
-		"group_id":              chatID,
-		"group_username":        "N/A",
-		action + "_by_name":     actorName,
-		action + "_by_id":       actorID,
-		action + "_by_username": mentionOf(sender, actorID),
-		"date_time":             time.Now().Format("02 Jan 2006 • 15:04"),
-	}
 }

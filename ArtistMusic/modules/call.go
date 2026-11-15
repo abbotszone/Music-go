@@ -304,7 +304,13 @@ func MonitorRooms() {
 			sem <- struct{}{}
 
 			go func(chatID int64, r *core.RoomState) {
-				defer func() { <-sem }()
+				defer func() {
+					<-sem
+					// A panic here would take the whole process down.
+					if rec := recover(); rec != nil {
+						logger.Errorf("room monitor panic in chat %d: %v", chatID, rec)
+					}
+				}()
 
 				if !r.Active() {
 					/*
@@ -423,6 +429,13 @@ func handleParticipantUpdate(c *td.Client, u *td.UpdateChatMember) error {
 	if c.Me != nil && userID == c.Me.Id && (newStatus == "left" || newStatus == "kicked") {
 		handleBotRemoved(c, u, chatID)
 		return nil
+	}
+
+	// Bot added to a group or channel (channels send no "members added" message).
+	if c.Me != nil && userID == c.Me.Id &&
+		(oldStatus == "left" || oldStatus == "kicked") &&
+		(newStatus == "member" || newStatus == "administrator" || newStatus == "creator") {
+		logChatChange(c, chatID, u.ActorUserId, true)
 	}
 
 	switch {

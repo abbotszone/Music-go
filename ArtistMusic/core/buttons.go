@@ -201,7 +201,8 @@ func GetPlayMarkup(chatID int64, r *RoomState, queued bool) td.ReplyMarkup {
 		DataBtn("Ⅱ", prefix+"pause"),
 		DataBtn("▷", prefix+"resume"),
 		DataBtn("↻", prefix+"replay"),
-		DataBtn("⏭", prefix+"skip"),
+		// U+FE0E forces the plain (non-emoji) glyph, like the other symbols.
+		DataBtn("⏭︎", prefix+"skip"),
 		DataBtn("▢", prefix+"stop"),
 	})
 

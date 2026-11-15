@@ -429,38 +429,54 @@ logger_playback_started: "ᴘʟᴧʏʙᴧᴄᴋ sᴛᴧʀᴛєᴅ"
 logger_playback_queued: "ᴘʟᴧʏʙᴧᴄᴋ ǫᴜєᴜєᴅ"
 
 logger_bot_added: |
-  ❖ <b>ʙσᴛ ᴧᴅᴅєᴅ ᴛσ ηєᴡ ɢʀσᴜᴘ</b>
-  
-  <blockquote>
-  <b>ɢʀσᴜᴘ ηᴧᴍє:</b> {group_name}
-  <b>ɢʀσᴜᴘ ɪᴅ:</b> {group_id}
-  <b>ɢʀσᴜᴘ ᴜsєʀηᴧᴍє:</b> {group_username}
+  ➲ <b>ʙσᴛ ᴧᴅᴅєᴅ ᴛσ ηєᴡ {chat_type}</b>
 
-  <b>ᴧᴅᴅєᴅ ʙʏ:</b> {added_by_name}
-  <b>ᴜsєʀ ɪᴅ:</b> {added_by_id}
-  <b>ᴜsєʀ ᴜsєʀηᴧᴍє:</b> {added_by_username}
+  <blockquote>
+  <b>ηᴧᴍє:</b> {chat_title}
+  <b>ɪᴅ:</b> <code>{chat_id}</code>
+
+  <b>ᴧᴅᴅєᴅ ʙʏ:</b> {by_mention}
+  <b>ᴜsєʀ ɪᴅ:</b> <code>{by_id}</code>
 
   <b>ᴛɪᴍє:</b> {date_time}
   </blockquote>
-#  ♙ <b>Members Count:</b> {members_count}
 
 logger_bot_removed: |
+  ➲ <b>ʙσᴛ ʀєᴍσᴠєᴅ ғʀσᴍ {chat_type}</b>
 
-  ❖ <b>ʙσᴛ ʀєᴍσᴠєᴅ ғʀσᴍ ɢʀσᴜᴘ</b>
   <blockquote>
-  <b>ɢʀσᴜᴘ ηᴧᴍє:</b> {group_name}
-  <b>ɢʀσᴜᴘ ɪᴅ:</b> {group_id}
-  <b>ɢʀσᴜᴘ ᴜsєʀηᴧᴍє:</b> {group_username}
+  <b>ηᴧᴍє:</b> {chat_title}
+  <b>ɪᴅ:</b> <code>{chat_id}</code>
 
-  <b>ʀєᴍσᴠєᴅ ʙʏ:</b> {removed_by_name}
-  <b>ᴜsєʀ ɪᴅ:</b> {removed_by_id}
-  <b>ᴜsєʀ ᴜsєʀηᴧᴍє:</b> {removed_by_username}
+  <b>ʀєᴍσᴠєᴅ ʙʏ:</b> {by_mention}
+  <b>ᴜsєʀ ɪᴅ:</b> <code>{by_id}</code>
 
   <b>ᴛɪᴍє:</b> {date_time}
+  </blockquote>
+
+logger_broadcast_started: |
+  ➲ <b>ʙʀσᴧᴅᴄᴧsᴛ sᴛᴧʀᴛєᴅ</b>
+
+  <blockquote>
+  <b>sᴛᴧʀᴛєᴅ ʙʏ:</b> {by}
+  <b>ᴄʜᴧᴛs:</b> {chats}
+  <b>ᴜsєʀs:</b> {users}
+  <b>ᴍσᴅє:</b> {mode}
+  <b>ᴅєʟᴧʏ:</b> {delay}s
+  </blockquote>
+
+logger_broadcast_finished: |
+  ➲ <b>ʙʀσᴧᴅᴄᴧsᴛ {status}</b>
+
+  <blockquote>
+  <b>sᴛᴧʀᴛєᴅ ʙʏ:</b> {by}
+  <b>ᴄʜᴧᴛs:</b> {done_chats}/{total_chats} (ғᴧɪʟєᴅ: {failed_chats})
+  <b>ᴜsєʀs:</b> {done_users}/{total_users} (ғᴧɪʟєᴅ: {failed_users})
+  <b>ᴛɪᴍє ᴛᴧᴋєη:</b> {elapsed}
   </blockquote>
 
 logger_bot_started: |
-  ▶ <b>{mention} sᴛᴧʀᴛєᴅ ᴛʜє ʙσᴛ</b>
+  ➲ <b>{mention} sᴛᴧʀᴛєᴅ ᴛʜє ʙσᴛ</b>
 
   <b>ᴜsєʀηᴧᴍє:</b> {user_username}
   <b>ɪᴅ:</b> {user_id}

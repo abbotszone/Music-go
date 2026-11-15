@@ -120,7 +120,15 @@ func initBot() error {
 	Bot = client
 
 	if config.LoggerID != 0 {
-		_, _ = client.SendTextMessage(config.LoggerID, "Bot Started", nil)
+		_, _ = client.SendTextMessage(
+			config.LoggerID,
+			fmt.Sprintf(
+				"➲ <b>ʙσᴛ sᴛᴧʀᴛєᴅ</b>\n\n<b>ʙσᴛ:</b> @%s\n<b>ᴛɪᴍє:</b> %s",
+				botUsername(),
+				time.Now().Format("02 Jan 2006 • 15:04"),
+			),
+			&td.SendTextMessageOpts{ParseMode: "HTML"},
+		)
 	}
 
 	logger.Infof("Bot started as @%s", botUsername())

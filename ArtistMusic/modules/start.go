@@ -217,7 +217,7 @@ func mentionOfAssistant(a *core.Assistant) string {
 
 // logStart reports a bot start to the configured logger chat, if enabled.
 func logStart(c *td.Client, m *td.Message, sender *td.User) {
-	if config.LoggerID == 0 || !isLoggerEnabled() || m.SenderID() == config.OwnerID {
+	if config.LoggerID == 0 || !isLoggerEnabled() {
 		return
 	}
 
@@ -730,6 +730,7 @@ type BroadcastStats struct {
 	Finished    bool
 	Cancelled   bool
 	Reasons     map[string]int
+	By          string
 }
 
 type broadcastTarget struct {
@@ -836,6 +837,11 @@ func broadcastHandler(c *td.Client, m *td.Message) error {
 		FailedChats: make([]int64, 0),
 		FailedUsers: make([]int64, 0),
 	}
+	if sender, _ := m.GetUser(c); sender != nil {
+		stats.By = mentionOf(sender, m.SenderID())
+	} else {
+		stats.By = mentionOf(nil, m.SenderID())
+	}
 
 	ctx, ok := bManager.start(stats)
 	if !ok {
@@ -853,6 +859,18 @@ func broadcastHandler(c *td.Client, m *td.Message) error {
 
 	go bManager.updateProgress(ctx, c, progressMsg, stats)
 	go bManager.run(ctx, c, m, progressMsg, flags, content, chats, users, stats)
+
+	mode := "forward"
+	if flags.Copy {
+		mode = "copy"
+	}
+	go sendLog(F(config.LoggerID, "logger_broadcast_started", locales.Arg{
+		"by":    stats.By,
+		"chats": len(chats),
+		"users": len(users),
+		"mode":  mode,
+		"delay": flags.Delay,
+	}))
 
 	return nil
 }
@@ -1241,9 +1259,25 @@ func (bm *broadcastManager) finalize(
 	stats.mu.Lock()
 	stats.Finished = true
 	text := formatBroadcastProgress(stats, true, progressMsg.ChatID())
+	status := "ᴄᴏᴍᴘʟєᴛєᴅ"
+	if stats.Cancelled {
+		status = "ᴄᴧηᴄєʟʟєᴅ"
+	}
+	logText := F(config.LoggerID, "logger_broadcast_finished", locales.Arg{
+		"status":       status,
+		"by":           stats.By,
+		"done_chats":   stats.DoneChats,
+		"total_chats":  stats.TotalChats,
+		"done_users":   stats.DoneUsers,
+		"total_users":  stats.TotalUsers,
+		"failed_chats": len(stats.FailedChats),
+		"failed_users": len(stats.FailedUsers),
+		"elapsed":      time.Since(stats.StartTime).Round(time.Second).String(),
+	})
 	stats.mu.Unlock()
 
 	_, _ = progressMsg.EditText(c, text, nil)
+	go sendLog(logText)
 }
 
 func formatBroadcastProgress(
